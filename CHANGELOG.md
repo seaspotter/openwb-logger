@@ -5,6 +5,14 @@ No formal releases yet — entries are grouped by what shipped, not by tag.
 
 ## [Unreleased]
 
+### Fixed
+- `GET /api/logs` (and `/api/logs/export`) 500ing whenever a `day` filter
+  was passed (including the normal "Heute (live)" view): the SQL cast the
+  bound parameter itself (`ts::date = $1::date`), so Postgres reported its
+  type as `date` to asyncpg, which then rejected the raw query-string
+  `str` FastAPI was handing it. Query params are now typed `date` so
+  FastAPI parses them before they ever reach asyncpg.
+
 ### Added
 - Optional in-app self-update: an "Update" button in the settings panel
   (`POST /api/update`) runs `git pull` then rebuilds and recreates the

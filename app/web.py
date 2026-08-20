@@ -4,6 +4,7 @@ asyncpg -- no other storage."""
 from __future__ import annotations
 
 import asyncio
+from datetime import date
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query
@@ -21,7 +22,7 @@ router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 
-def _filters(day: str | None, search: str | None, level: str | None, source: str | None):
+def _filters(day: date | None, search: str | None, level: str | None, source: str | None):
     clauses = []
     params: list = []
 
@@ -84,7 +85,7 @@ async def api_sources():
 
 @router.get("/api/logs")
 async def api_logs(
-    day: str | None = None,
+    day: date | None = None,
     search: str | None = None,
     level: str | None = None,
     source: str | None = None,
@@ -125,7 +126,7 @@ async def api_logs(
 
 @router.get("/api/logs/export")
 async def api_export(
-    day: str | None = None,
+    day: date | None = None,
     search: str | None = None,
     level: str | None = None,
     source: str | None = None,
