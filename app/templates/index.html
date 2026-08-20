@@ -200,6 +200,7 @@ function updateRangeUI() {
   const active = hasCustomRange();
   dayEl.disabled = active;
   liveEl.disabled = active;
+  if (active) liveEl.checked = false;
   rangeClearBtn.disabled = !active;
   document.getElementById('prev').disabled = active;
   document.getElementById('next').disabled = active;
@@ -379,9 +380,26 @@ document.getElementById('next').onclick = () => {
 };
 sourceEl.onchange = async () => { offset = 0; await loadDates(); await loadLevels(); load(); };
 dayEl.onchange = () => { offset = 0; load(); };
-levelEl.onchange = () => { offset = 0; load(); };
+levelEl.onchange = () => { liveEl.checked = false; offset = 0; load(); };
 let searchDebounce;
-searchEl.oninput = () => { clearTimeout(searchDebounce); searchDebounce = setTimeout(() => { offset = 0; load(); }, 300); };
+searchEl.oninput = () => {
+  liveEl.checked = false;
+  clearTimeout(searchDebounce);
+  searchDebounce = setTimeout(() => { offset = 0; load(); }, 300);
+};
+
+// Scrolling away from the live edge (bottom in the default oldest-first
+// order, top when the newest-first toggle is on) pauses live-follow, same
+// as älter/neuer/level/search/Zeitraum -- otherwise the next 5s auto-
+// refresh (or auto-scroll) would yank the view out from under you mid-read.
+// Only reacts when actually live, so our own auto-scroll (which lands
+// exactly on that edge) never triggers it.
+logEl.addEventListener('scroll', () => {
+  if (!liveEl.checked) return;
+  const atBottom = logEl.scrollTop + logEl.clientHeight >= logEl.scrollHeight - 4;
+  const atTop = logEl.scrollTop <= 4;
+  if (!(sortDesc ? atTop : atBottom)) liveEl.checked = false;
+});
 
 document.getElementById('export').onclick = () => {
   const lineFrom = document.getElementById('from').value || 0;

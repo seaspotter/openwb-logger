@@ -23,6 +23,11 @@ No formal releases yet — entries are grouped by what shipped, not by tag.
 
 ### Changed
 - DEBUG-level log lines are now dark green instead of grey.
+- "Live" now turns itself off (not just visually inert) when you scroll
+  away from the live edge, change the log level, search, or pick a
+  Zeitraum range — previously only älter/neuer did this, so those other
+  interactions left "Live" checked while an auto-refresh or auto-scroll
+  could still pull the view out from under you mid-read.
 - Reduced recurring DB load, unrelated to actual usage, that was scaling
   with table size regardless of how many people were looking:
   - `GET /api/status` (polled every 5s by every open tab) no longer runs a
