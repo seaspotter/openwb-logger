@@ -58,7 +58,7 @@ there's nothing left here to set before first start at all.
 |---|---|---|
 | `POSTGRES_PASSWORD` | — | Set a real password in `.env`; used by both services |
 | `PORT` | `8080` | Web UI / API port |
-| `TZ` | `UTC` | Container timezone. Affects only app-generated timestamps (e.g. "Letzter Abruf" in the status bar) — log lines' own `ts` come from openWB's log text and are unaffected. Set to your own zone, e.g. `Europe/Berlin`. |
+| `TZ` | `Europe/Berlin` | Container timezone. Affects only app-generated timestamps (e.g. "Letzter Abruf" in the status bar) — log lines' own `ts` come from openWB's log text and are unaffected. Override in `.env` if you're not in that zone. |
 | `DATABASE_URL` | `postgresql://openwb_logger:openwb_logger@localhost:5432/openwb_logger` | Postgres/TimescaleDB connection string (docker-compose sets this for you from `POSTGRES_PASSWORD`; only relevant if you're not using docker-compose) |
 
 On first start, the app seeds its settings with hardcoded fallback

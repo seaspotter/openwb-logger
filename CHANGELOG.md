@@ -8,10 +8,10 @@ No formal releases yet — entries are grouped by what shipped, not by tag.
 ### Fixed
 - App-generated timestamps (e.g. "Letzter Abruf" in the status bar) showed
   the container's default UTC clock instead of local time, since nothing
-  told the container what timezone it was in. New `TZ` env var (default
-  `UTC`, set your own in `.env`) fixes it; log lines' own `ts` were never
-  affected (they come straight from openWB's log text, not the container's
-  clock).
+  told the container what timezone it was in. New `TZ` env var (defaults
+  to `Europe/Berlin`; override in `.env` if that's not your zone) fixes
+  it; log lines' own `ts` were never affected (they come straight from
+  openWB's log text, not the container's clock).
 - `GET /api/logs` (and `/api/logs/export`) 500ing whenever a `day` filter
   was passed (including the normal "Heute (live)" view): the SQL cast the
   bound parameter itself (`ts::date = $1::date`), so Postgres reported its
