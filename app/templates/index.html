@@ -45,6 +45,7 @@
   input[type=number] { width: 80px; }
   input[type=datetime-local] { width: 180px; }
   .range-group { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+  .range-quick { padding: 4px 7px; font-size: 12px; }
   button { cursor: pointer; }
   button:hover { border-color: var(--accent); }
   button:disabled { opacity: 0.5; cursor: default; }
@@ -105,6 +106,10 @@
     Zeitraum <input id="range-from" type="datetime-local">
     bis <input id="range-to" type="datetime-local">
     <button id="range-clear" class="icon" title="Zeitraum zurücksetzen" disabled>&times;</button>
+    <button type="button" class="range-quick" data-minutes="15">15 Min</button>
+    <button type="button" class="range-quick" data-minutes="30">30 Min</button>
+    <button type="button" class="range-quick" data-minutes="60">1 Std</button>
+    <button type="button" class="range-quick" data-minutes="120">2 Std</button>
   </span>
   <select id="level"><option value="">Alle Level</option></select>
   <input id="search" type="text" placeholder="Suchen...">
@@ -189,9 +194,10 @@ let LIMIT = 1000; // overwritten by the page_size setting once loaded, see init(
 // Zeitraum mode fetches the whole selected window in one request instead of
 // paging -- the user already bounded it by picking from/to, so 1000-at-a-
 // time would just defeat the point (see CHANGELOG). Capped, not unbounded,
-// so an accidentally huge window can't hang the browser -- see the
-// truncation notice in load() when total exceeds this.
-const RANGE_LIMIT = 20000;
+// so an accidentally huge window (e.g. picking days instead of hours by
+// mistake) can't hang the browser rendering hundreds of thousands of DOM
+// nodes -- see the truncation notice in load() when this is exceeded.
+const RANGE_LIMIT = 100000;
 // Keyset (cursor) pagination by (ts, id) instead of a numeric offset -- see
 // CHANGELOG. `pendingCursor` describes the next /api/logs request: null
 // means "start from the beginning"; {after} / {before} continue from the
@@ -222,6 +228,26 @@ rangeClearBtn.onclick = () => {
   updateRangeUI();
   load();
 };
+
+// Local wall-clock formatting (no timezone conversion, matching how the
+// rest of the app treats timestamps -- see CLAUDE.md), in the format
+// <input type="datetime-local"> expects.
+function formatLocalDateTime(date) {
+  const pad = n => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
+    `T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+document.querySelectorAll('.range-quick').forEach(btn => {
+  btn.onclick = () => {
+    const minutes = parseInt(btn.dataset.minutes, 10);
+    const now = new Date();
+    rangeToEl.value = formatLocalDateTime(now);
+    rangeFromEl.value = formatLocalDateTime(new Date(now.getTime() - minutes * 60000));
+    pendingCursor = null;
+    updateRangeUI();
+    load();
+  };
+});
 
 // ---- Sortierung (älteste/neueste zuerst) ----
 const SORT_KEY = 'openwb-logger-sort-desc';

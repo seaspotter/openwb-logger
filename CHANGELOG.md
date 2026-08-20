@@ -61,6 +61,13 @@ No formal releases yet — entries are grouped by what shipped, not by tag.
   based on those flags instead of a total.
 
 ### Added
+- Quick Zeitraum buttons (15 Min / 30 Min / 1 Std / 2 Std) that set from/to
+  to "now minus N" through "now" and load immediately — no more manually
+  picking both datetime fields for the common "just show me recently"
+  case. Raised the Zeitraum line cap from 20000 to 100000 to go with it
+  (see below) — even a 15-minute window can be tens of thousands of lines
+  on a verbose source, so the old cap would have truncated the shortest
+  preset almost every time.
 - "Zeilen pro Seite" setting in the settings panel (default raised from a
   hardcoded 1000 to 5000, adjustable 100-20000) — controls the page size
   for both "Heute (live)" tail mode and normal day paging.
@@ -69,11 +76,11 @@ No formal releases yet — entries are grouped by what shipped, not by tag.
   whole calendar day — backed by new `from`/`to` filters on `/api/logs`
   and `/api/logs/export` (`ts >= ` / `ts < `, independent of the existing
   `day` equality filter). Fetches the whole selected window in one request
-  (up to 20000 lines, `/api/logs`'s own cap raised to match) instead of
+  (up to 100000 lines, `/api/logs`'s own cap raised to match) instead of
   paging 1000 at a time — you already bounded it by picking from/to, so
   paging through it in 1000-line chunks defeated the point. Past that cap
-  the view shows only the earliest 20000 lines plus a notice to narrow the
-  range further.
+  the view shows only the earliest 100000 lines plus a notice to narrow
+  the range further.
 - Newest-first display toggle (the ⇅ button next to "Exportieren"),
   remembered in `localStorage`. Purely a display-order flip on already-
   fetched lines; doesn't change what's fetched or how paging works.

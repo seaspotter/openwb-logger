@@ -112,7 +112,7 @@ async def api_logs(
     after_id: int | None = None,
     before_ts: datetime | None = None,
     before_id: int | None = None,
-    limit: int = Query(default=500, le=20000),
+    limit: int = Query(default=500, le=100000),
     tail: bool = False,
 ):
     """Keyset (cursor) pagination by (ts, id) instead of OFFSET/LIMIT, so
