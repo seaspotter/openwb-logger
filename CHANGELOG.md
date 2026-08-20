@@ -81,6 +81,15 @@ No formal releases yet — entries are grouped by what shipped, not by tag.
   based on those flags instead of a total.
 
 ### Added
+- Format-mismatch warning: previously, a source whose actual log format
+  no longer matched what `log_catalog.py` declared (e.g. an openWB update
+  changing its format) failed completely silently — every line just fell
+  back to being stored as an unparsed "continuation," with no signal
+  anywhere, not even the container logs. Each fetch now checks what
+  fraction of a batch (10+ lines) came back as continuations; past 50%,
+  it logs a warning and shows a "Format-Warnung: <source>" in the status
+  bar. A one-off traceback or two won't trigger it — only a batch that's
+  mostly unparsed will.
 - "An Paste senden" button next to "Exportieren" — uploads the current
   filter's export to openWB's own paste instance
   ([lucko/paste](https://github.com/lucko/paste), self-hosted at

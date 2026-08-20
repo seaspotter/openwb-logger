@@ -293,6 +293,7 @@ async def api_status():
                 "last_lines_added": st.last_lines_added,
                 "total_gaps_detected": st.total_gaps_detected,
                 "total_gaps_recovered": st.total_gaps_recovered,
+                "format_mismatch_suspected": st.format_mismatch_suspected,
                 "last_error": st.last_error,
             }
             for name, st in s.sources.items()

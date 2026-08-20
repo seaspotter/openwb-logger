@@ -428,6 +428,11 @@ async function loadStatus() {
   if (gapEntries.length) {
     extra = '<span>Lücken: ' + gapEntries.map(([n, v]) => `${n} ${v.total_gaps_detected} (${v.total_gaps_recovered} wiederhergestellt)`).join(', ') + '</span>';
   }
+  const formatWarnings = Object.entries(s.sources).filter(([, v]) => v.format_mismatch_suspected).map(([n]) => n);
+  if (formatWarnings.length) {
+    extra += `<span style="color:var(--error)" title="Viele Zeilen passen nicht zum erwarteten Format -- vermutlich stimmt das in log_catalog.py hinterlegte Format nicht mehr">` +
+      `Format-Warnung: ${formatWarnings.join(', ')}</span>`;
+  }
   statusEl.innerHTML =
     `<span>Quelle: ${s.source_url}</span>` +
     `<span>Abruf: alle ${s.fetch_interval_seconds}s</span>` +

@@ -20,6 +20,10 @@ open an issue or just start working if something here matters to you.
       socket, no rebuild)
 - [x] Cursor/keyset-based paging (by `(ts, id)`) instead of `OFFSET/LIMIT`
       for day/Zeitraum views — paging cost no longer grows with depth
+- [x] Surface parse failures/unexpected formats in the UI instead of only
+      the container logs — a per-source "format warning" in the status
+      bar (plus a container log warning) when an unusually high fraction
+      of a batch doesn't match the source's declared format
 
 ## Next
 
@@ -30,8 +34,6 @@ open an issue or just start working if something here matters to you.
       to make this straightforward later — `DATABASE_URL` can collapse to
       a fixed localhost value and everything else is already configured
       from inside the app, not env vars.
-- [ ] Surface parse failures/unexpected formats in the UI instead of only
-      the container logs
 
 ## Someday / maybe
 

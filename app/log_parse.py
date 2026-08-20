@@ -98,3 +98,16 @@ def parse_line(
         "raw": raw,
         "is_continuation": False,
     }
+
+
+def continuation_ratio(rows: list[ParsedLine]) -> float:
+    """Fraction of already-parsed rows that came back as continuations,
+    i.e. didn't match the expected format. Used by fetcher.py to flag a
+    likely log_catalog.py format mismatch for a source -- occasional
+    legitimate multi-line content (tracebacks etc.) only ever accounts for
+    a small fraction of a batch, whereas a genuine mismatch between a
+    source's declared and actual format fails to match almost every line,
+    batch after batch."""
+    if not rows:
+        return 0.0
+    return sum(1 for r in rows if r["is_continuation"]) / len(rows)
