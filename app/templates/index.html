@@ -84,6 +84,11 @@
   #settings-msg { font-size: 12px; margin-top: 8px; min-height: 16px; }
   #settings-msg.error { color: var(--error); }
   #settings-msg.ok { color: var(--accent); }
+  #update-info { display: flex; align-items: center; gap: 10px; }
+  #update-commit { font-size: 12px; color: var(--muted); font-family: monospace; }
+  #update-msg { font-size: 12px; margin-top: 6px; min-height: 16px; }
+  #update-msg.error { color: var(--error); }
+  #update-msg.ok { color: var(--accent); }
 </style>
 </head>
 <body>
@@ -135,6 +140,14 @@
     <div class="field">
       <label for="s-retention">Aufbewahrung (Tage)</label>
       <input id="s-retention" type="number" min="1">
+    </div>
+    <div class="field">
+      <label>Version</label>
+      <div id="update-info">
+        <span id="update-commit">-</span>
+        <button id="update-btn" type="button">Update</button>
+      </div>
+      <div id="update-msg"></div>
     </div>
     <div id="settings-msg"></div>
     <div class="actions">
@@ -330,6 +343,7 @@ async function openSettings() {
     wrap.innerHTML = `<input type="checkbox" id="${id}" value="${src.name}" ${checked}> ${src.label} <span style="color:var(--muted)">(${src.format})</span>`;
     box.appendChild(wrap);
   }
+  await loadUpdateInfo();
   backdrop.classList.add('open');
 }
 
@@ -366,6 +380,47 @@ document.getElementById('settings-save').onclick = async () => {
   await loadLevels();
   await loadStatus();
   setTimeout(closeSettings, 900);
+};
+
+// ---- Update ----
+const updateBtn = document.getElementById('update-btn');
+const updateCommitEl = document.getElementById('update-commit');
+const updateMsgEl = document.getElementById('update-msg');
+
+async function loadUpdateInfo() {
+  updateMsgEl.textContent = '';
+  updateMsgEl.className = '';
+  const res = await fetch('/api/update/status');
+  const data = await res.json();
+  updateCommitEl.textContent = data.current_commit ? data.current_commit : '-';
+  updateBtn.disabled = !data.available;
+  updateBtn.title = data.available ? '' : 'Self-Update ist nicht konfiguriert (HOST_REPO_DIR fehlt)';
+  if (data.last_update) {
+    updateMsgEl.textContent = data.last_update.detail;
+    updateMsgEl.className = data.last_update.ok ? 'ok' : 'error';
+  }
+}
+
+updateBtn.onclick = async () => {
+  if (!confirm('Update jetzt starten? Die Anwendung wird dabei neu gebaut und neu gestartet.')) return;
+  updateBtn.disabled = true;
+  const originalText = updateBtn.textContent;
+  updateBtn.textContent = 'Wird gestartet...';
+  try {
+    const res = await fetch('/api/update', { method: 'POST' });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      updateMsgEl.textContent = err.detail || 'Update konnte nicht gestartet werden';
+      updateMsgEl.className = 'error';
+      updateBtn.disabled = false;
+      updateBtn.textContent = originalText;
+      return;
+    }
+    updateMsgEl.textContent = 'Update gestartet. Die Anwendung startet in Kürze neu — diese Seite dann manuell neu laden.';
+    updateMsgEl.className = 'ok';
+  } finally {
+    updateBtn.textContent = originalText;
+  }
 };
 
 (async function init() {

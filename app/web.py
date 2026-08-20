@@ -3,6 +3,7 @@ export, status, and runtime settings. All backed by TimescaleDB via
 asyncpg -- no other storage."""
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query
@@ -14,6 +15,7 @@ from .db import get_pool
 from .fetcher import fetcher
 from .log_catalog import CATALOG
 from .runtime_settings import ValidationError, get_settings, update_settings
+from .updater import get_current_commit, get_update_status, run_update, self_update_available
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
@@ -175,6 +177,32 @@ async def api_status():
         "total_rows": stats["total"],
         "oldest": stats["oldest"].isoformat() if stats["oldest"] else None,
         "newest": stats["newest"].isoformat() if stats["newest"] else None,
+    }
+
+
+@router.post("/api/update")
+async def api_update():
+    """Kicks off a self-update (git pull + rebuild + recreate) in the
+    background and returns immediately -- the rebuild/recreate step
+    survives this container being replaced (see app/updater.py), but the
+    request/response cycle doesn't need to."""
+    pool = get_pool()
+    if not self_update_available():
+        raise HTTPException(
+            status_code=400,
+            detail="Self-Update ist nicht konfiguriert (HOST_REPO_DIR fehlt). Siehe DEPLOYMENT.md.",
+        )
+    asyncio.create_task(run_update(pool))
+    return {"status": "started"}
+
+
+@router.get("/api/update/status")
+async def api_update_status():
+    pool = get_pool()
+    return {
+        "available": self_update_available(),
+        "current_commit": await get_current_commit(),
+        "last_update": await get_update_status(pool),
     }
 
 

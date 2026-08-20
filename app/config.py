@@ -1,5 +1,6 @@
-"""Infra-level configuration: how to reach the database, read once from an
-environment variable at import time.
+"""Infra-level configuration: how to reach the database (and, for the
+self-update feature, where the repo checkout lives), read once from
+environment variables at import time.
 
 Everything about the tool's own behavior -- where openWB is, which logs to
 collect, retention, poll interval -- is deliberately NOT here. It lives in
@@ -23,6 +24,19 @@ class Settings:
     database_url: str = os.environ.get(
         "DATABASE_URL", "postgresql://openwb_logger:openwb_logger@localhost:5432/openwb_logger"
     )
+
+    # Where the repo checkout is bind-mounted *inside this container* -- used
+    # by app/updater.py to run `git pull`. Not the same as HOST_REPO_DIR.
+    repo_dir: str = os.environ.get("REPO_DIR", "/repo")
+
+    # Absolute path to the same checkout *on the Docker host*. Required
+    # because self-update launches a sibling container over the mounted
+    # docker socket (docker-outside-of-docker) -- volume paths for that
+    # sibling are resolved by the host daemon, so a path meaningful only
+    # inside this container (REPO_DIR) won't work for it. Self-update is
+    # disabled (not just failing) when this isn't set, since a wrong value
+    # would silently point the rebuild at the wrong directory.
+    host_repo_dir: str | None = os.environ.get("HOST_REPO_DIR")
 
 
 settings = Settings()

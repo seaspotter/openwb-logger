@@ -6,6 +6,12 @@ No formal releases yet — entries are grouped by what shipped, not by tag.
 ## [Unreleased]
 
 ### Added
+- Optional in-app self-update: an "Update" button in the settings panel
+  (`POST /api/update`) runs `git pull` then rebuilds and recreates the
+  stack via a detached sibling container over the Docker socket. Off by
+  default — needs `HOST_REPO_DIR` in `.env` plus starting with
+  `-f docker-compose.selfupdate.yml`, since it requires mounting the
+  Docker socket into the app container. See `DEPLOYMENT.md`.
 - Backfill on first-ever fetch: when a source has no saved tail state yet
   (fresh deployment, or a source just enabled in the settings panel), the
   fetcher now reads its existing rotated backups (oldest first) before the
