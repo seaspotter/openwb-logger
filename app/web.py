@@ -3,6 +3,7 @@ export, status, and runtime settings. All backed by TimescaleDB via
 asyncpg -- no other storage."""
 from __future__ import annotations
 
+import time
 from datetime import date, datetime
 from pathlib import Path
 
@@ -50,6 +51,30 @@ def _filters(
         add("source = ${n}", source)
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     return where, params
+
+
+# Short-TTL cache for the filtered COUNT(*) in api_logs' tail branch, which
+# every open tab re-requests every 5s while watching "Heute (live)" -- a
+# full/filtered scan on that cadence, times however many tabs are open, adds
+# up on a table with tens of millions of rows. TTL is intentionally shorter
+# than any sane poll interval, so a single tab still sees a fresh count on
+# essentially every poll; it's multiple tabs hitting the *same* filter
+# combination within that window that get collapsed onto one query.
+_TAIL_COUNT_TTL_SECONDS = 4.0
+_tail_count_cache: dict[tuple, tuple[float, int]] = {}
+
+
+async def _tail_count(pool, where: str, params: list) -> int:
+    key = (where, tuple(params))
+    now = time.monotonic()
+    cached = _tail_count_cache.get(key)
+    if cached is not None and now - cached[0] < _TAIL_COUNT_TTL_SECONDS:
+        return cached[1]
+    total = await pool.fetchval(f"SELECT count(*) FROM log_lines {where}", *params)
+    if len(_tail_count_cache) > 50:  # cheap safety net against unbounded growth
+        _tail_count_cache.clear()
+    _tail_count_cache[key] = (now, total)
+    return total
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -108,9 +133,8 @@ async def api_logs(
     pool = get_pool()
     where, params = _filters(day, search, level, source, from_, to)
 
-    total = await pool.fetchval(f"SELECT count(*) FROM log_lines {where}", *params)
-
     if tail:
+        total = await _tail_count(pool, where, params)
         rows = await pool.fetch(
             f"SELECT id, ts, level, logger_name, source, raw FROM log_lines {where} "
             f"ORDER BY ts DESC, id DESC LIMIT ${len(params) + 1}",
@@ -119,6 +143,7 @@ async def api_logs(
         rows = list(reversed(rows))
         offset = max(total - len(rows), 0)
     else:
+        total = await pool.fetchval(f"SELECT count(*) FROM log_lines {where}", *params)
         rows = await pool.fetch(
             f"SELECT id, ts, level, logger_name, source, raw FROM log_lines {where} "
             f"ORDER BY ts, id LIMIT ${len(params) + 1} OFFSET ${len(params) + 2}",
@@ -167,10 +192,14 @@ async def api_fetch_now():
 
 @router.get("/api/status")
 async def api_status():
+    """Polled every 5s by every open tab (see index.html), so this must stay
+    cheap regardless of table size. approximate_row_count() uses Timescale's
+    chunk statistics instead of a full scan; min(ts)/max(ts) are already
+    index-optimized by Postgres (converted to an index scan for the
+    endpoint) since ts is the hypertable's time-partitioning column."""
     pool = get_pool()
-    stats = await pool.fetchrow(
-        "SELECT count(*) AS total, min(ts) AS oldest, max(ts) AS newest FROM log_lines"
-    )
+    total = await pool.fetchval("SELECT approximate_row_count('log_lines')")
+    stats = await pool.fetchrow("SELECT min(ts) AS oldest, max(ts) AS newest FROM log_lines")
     rt = await get_settings(pool)
     s = fetcher.status
     return {
@@ -189,7 +218,7 @@ async def api_status():
         "fetch_interval_seconds": rt["fetch_interval_seconds"],
         "retention_days": rt["retention_days"],
         "source_url": f"{rt['openwb_base_url']}{rt['openwb_ramdisk_path']}",
-        "total_rows": stats["total"],
+        "total_rows": total,
         "oldest": stats["oldest"].isoformat() if stats["oldest"] else None,
         "newest": stats["newest"].isoformat() if stats["newest"] else None,
     }

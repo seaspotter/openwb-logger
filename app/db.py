@@ -23,6 +23,9 @@ _pool: asyncpg.Pool | None = None
 
 _SCHEMA_STATEMENTS = [
     "CREATE EXTENSION IF NOT EXISTS timescaledb;",
+    # pg_trgm backs idx_log_lines_raw_trgm below, for `raw ILIKE` search --
+    # without it, ILIKE over a large log_lines is a full-text sequential scan.
+    "CREATE EXTENSION IF NOT EXISTS pg_trgm;",
     """
     CREATE TABLE IF NOT EXISTS log_lines (
         id BIGSERIAL NOT NULL,
@@ -45,6 +48,13 @@ _SCHEMA_STATEMENTS = [
     "SELECT create_hypertable('log_lines', 'ts', if_not_exists => TRUE);",
     "CREATE INDEX IF NOT EXISTS idx_log_lines_level ON log_lines (level);",
     "CREATE INDEX IF NOT EXISTS idx_log_lines_source ON log_lines (source);",
+    # Covers the common "filter by source, latest first" shape (tail mode,
+    # /api/dates, /api/levels when a source is selected) better than the
+    # single-column source index above.
+    "CREATE INDEX IF NOT EXISTS idx_log_lines_source_ts ON log_lines (source, ts DESC);",
+    # GIN trigram index so `raw ILIKE '%term%'` (search) can use an index
+    # scan instead of reading every row -- see CREATE EXTENSION pg_trgm above.
+    "CREATE INDEX IF NOT EXISTS idx_log_lines_raw_trgm ON log_lines USING GIN (raw gin_trgm_ops);",
     """
     CREATE TABLE IF NOT EXISTS fetcher_state (
         key TEXT PRIMARY KEY,

@@ -30,8 +30,13 @@ open an issue or just start working if something here matters to you.
       from inside the app, not env vars.
 - [ ] Authentication / access control for the web UI (currently none —
       LAN-only by convention, see DEPLOYMENT.md).
-- [ ] `pg_trgm` index on `raw` for faster search once log volume grows
-      large enough for a plain `ILIKE` scan to matter
+- [ ] Cursor/keyset-based paging (by `(ts, id)`) instead of `OFFSET/LIMIT`
+      for day/Zeitraum views. OFFSET makes Postgres scan and discard every
+      prior row, so paging gets slower the deeper into a busy day/range you
+      go — fine near the start, noticeably not once log volume grows. Not
+      done yet because it changes the paging model on both ends (offset
+      numbers vs. cursors) enough to deserve its own dedicated pass rather
+      than being folded into an unrelated change.
 - [ ] Per-source retention and per-source poll interval (right now both
       are global across all collected logs)
 - [ ] Surface parse failures/unexpected formats in the UI instead of only

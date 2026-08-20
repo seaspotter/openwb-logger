@@ -23,6 +23,26 @@ No formal releases yet — entries are grouped by what shipped, not by tag.
 
 ### Changed
 - DEBUG-level log lines are now dark green instead of grey.
+- Reduced recurring DB load, unrelated to actual usage, that was scaling
+  with table size regardless of how many people were looking:
+  - `GET /api/status` (polled every 5s by every open tab) no longer runs a
+    full `COUNT(*)` — it now uses TimescaleDB's `approximate_row_count()`,
+    which reads chunk statistics instead of scanning the table. `min(ts)`/
+    `max(ts)` are unaffected (Postgres already turns those into a cheap
+    index scan via the hypertable's time index).
+  - `GET /api/logs`'s filtered `COUNT(*)` (needed to compute the tail
+    window's starting offset) is now cached for 4 seconds per distinct
+    filter combination while in tail mode, so N open tabs watching "Heute
+    (live)" collapse onto roughly one count query per poll interval
+    instead of N. Day/Zeitraum paging (not on a 5s timer) is unaffected —
+    still an exact, uncached count.
+  - Added indexes: `(source, ts DESC)` for the common "filter by source,
+    latest first" query shape, and a `pg_trgm` GIN index on `raw` so
+    search (`ILIKE`) can use an index scan instead of reading every row.
+    Both are built automatically on next startup (`CREATE INDEX IF NOT
+    EXISTS`) — on an already-large table this can take a while and briefly
+    hold a lock per chunk; harmless but worth expecting on the first
+    restart after this update, not on every restart after.
 
 ### Added
 - "Zeilen pro Seite" setting in the settings panel (default raised from a

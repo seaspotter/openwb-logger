@@ -83,7 +83,13 @@ docker compose up -d --build
 
 Schema changes are additive and applied automatically at startup
 (`CREATE ... IF NOT EXISTS` / `ALTER ... ADD COLUMN IF NOT EXISTS` in
-`app/db.py`) — no separate migration step.
+`app/db.py`) — no separate migration step. One exception worth expecting:
+the first restart after the indexes added for search/filter performance
+land (`idx_log_lines_source_ts`, `idx_log_lines_raw_trgm`) will take longer
+than usual if `log_lines` is already large, since building an index over
+existing data takes a moment (and briefly locks each chunk while it does).
+Every restart after that is unaffected — `IF NOT EXISTS` skips rebuilding
+them.
 
 ### Self-update from the UI
 
