@@ -3,6 +3,7 @@ export, status, and runtime settings. All backed by TimescaleDB via
 asyncpg -- no other storage."""
 from __future__ import annotations
 
+import gzip
 from datetime import date, datetime
 from pathlib import Path
 
@@ -228,7 +229,14 @@ async def api_export_paste(
     (https://github.com/lucko/paste, self-hosted) and returns a shareable
     link. Same "only on an explicit button click" rule the paste API's own
     terms require for its official instance -- this endpoint only ever
-    runs from the user clicking the button, never automatically."""
+    runs from the user clicking the button, never automatically.
+
+    Gzips the body first: verified directly against the live instance that
+    an uncompressed upload over roughly 5MB (a 15-minute Zeitraum export on
+    a verbose source is already there) gets a 502 from its reverse proxy,
+    while the exact same content gzip-compressed goes through fine --
+    bytebin's own README recommends this regardless of that specific
+    limit ("ideally, content should be compressed with GZIP")."""
     pool = get_pool()
     body = await _export_body(pool, day, search, level, source, from_, to)
     if not body:
@@ -239,9 +247,10 @@ async def api_export_paste(
         async with httpx.AsyncClient() as client:
             resp = await client.post(
                 rt["paste_upload_url"],
-                content=body.encode("utf-8"),
+                content=gzip.compress(body.encode("utf-8")),
                 headers={
                     "Content-Type": "text/plain",
+                    "Content-Encoding": "gzip",
                     "User-Agent": "openwb-logger (github.com/seaspotter/openwb-logger)",
                 },
                 timeout=30,

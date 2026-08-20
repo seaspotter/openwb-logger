@@ -6,6 +6,13 @@ No formal releases yet — entries are grouped by what shipped, not by tag.
 ## [Unreleased]
 
 ### Fixed
+- "An Paste senden" 502ing on uploads over roughly 5MB (a 15-minute
+  Zeitraum export on a verbose source is already there) — confirmed
+  directly against the live `bytebin.openwb.de` instance that its reverse
+  proxy rejects uncompressed bodies past that point. Now gzips before
+  uploading (`Content-Encoding: gzip`), which bytebin's own docs recommend
+  regardless of that specific limit; the same content that 502'd
+  uncompressed went through fine compressed in testing.
 - App-generated timestamps (e.g. "Letzter Abruf" in the status bar) showed
   the container's default UTC clock instead of local time, since nothing
   told the container what timezone it was in. New `TZ` env var (defaults
