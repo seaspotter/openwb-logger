@@ -1,5 +1,6 @@
 """User-editable settings: where openWB is, which of its logs to collect,
-how long to keep them, and how often to poll. Stored in the `app_settings`
+how long to keep them, how often to poll, and how many lines to show per
+page in the UI. Stored in the `app_settings`
 table (one JSONB row) so changes made through the web UI take effect on the
 next poll cycle without a container restart -- unlike app/config.py, which
 holds infra-level settings (DB connection, port, ...) fixed for the life
@@ -27,11 +28,16 @@ DEFAULT_OPENWB_BASE_URL = "http://openwb"
 DEFAULT_OPENWB_RAMDISK_PATH = "/openWB/ramdisk"
 DEFAULT_FETCH_INTERVAL_SECONDS = 600  # 10 min
 DEFAULT_RETENTION_DAYS = 30
+DEFAULT_PAGE_SIZE = 5000
 
 MIN_FETCH_INTERVAL_SECONDS = 60
 MAX_FETCH_INTERVAL_SECONDS = 86400
 MIN_RETENTION_DAYS = 1
 MAX_RETENTION_DAYS = 3650
+MIN_PAGE_SIZE = 100
+# Matches /api/logs' own `limit` cap (app/web.py) -- no point accepting a
+# setting the API would reject anyway.
+MAX_PAGE_SIZE = 20000
 
 
 class RuntimeSettings(TypedDict):
@@ -40,6 +46,7 @@ class RuntimeSettings(TypedDict):
     enabled_sources: list[str]
     fetch_interval_seconds: int
     retention_days: int
+    page_size: int
 
 
 def defaults() -> RuntimeSettings:
@@ -49,6 +56,7 @@ def defaults() -> RuntimeSettings:
         "enabled_sources": list(DEFAULT_ENABLED),
         "fetch_interval_seconds": DEFAULT_FETCH_INTERVAL_SECONDS,
         "retention_days": DEFAULT_RETENTION_DAYS,
+        "page_size": DEFAULT_PAGE_SIZE,
     }
 
 
@@ -99,6 +107,14 @@ def validate(patch: dict) -> dict:
                 f"und {MAX_RETENTION_DAYS} Tagen liegen"
             )
         clean["retention_days"] = days
+
+    if "page_size" in patch:
+        size = int(patch["page_size"])
+        if not (MIN_PAGE_SIZE <= size <= MAX_PAGE_SIZE):
+            raise ValidationError(
+                f"Die Seitengröße muss zwischen {MIN_PAGE_SIZE} und {MAX_PAGE_SIZE} liegen"
+            )
+        clean["page_size"] = size
 
     return clean
 

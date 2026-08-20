@@ -150,6 +150,10 @@
       <input id="s-retention" type="number" min="1">
     </div>
     <div class="field">
+      <label for="s-page-size">Zeilen pro Seite</label>
+      <input id="s-page-size" type="number" min="100" max="20000" step="100">
+    </div>
+    <div class="field">
       <label>Version</label>
       <div id="update-info">
         <span id="update-commit">-</span>
@@ -177,7 +181,7 @@ const statusEl = document.getElementById('status');
 const rangeFromEl = document.getElementById('range-from');
 const rangeToEl = document.getElementById('range-to');
 const rangeClearBtn = document.getElementById('range-clear');
-const LIMIT = 1000;
+let LIMIT = 1000; // overwritten by the page_size setting once loaded, see init()/openSettings()
 // Zeitraum mode fetches the whole selected window in one request instead of
 // paging -- the user already bounded it by picking from/to, so 1000-at-a-
 // time would just defeat the point (see CHANGELOG). Capped, not unbounded,
@@ -414,6 +418,7 @@ async function openSettings() {
   document.getElementById('s-ramdisk').value = data.settings.openwb_ramdisk_path;
   document.getElementById('s-interval').value = data.settings.fetch_interval_seconds;
   document.getElementById('s-retention').value = data.settings.retention_days;
+  document.getElementById('s-page-size').value = data.settings.page_size;
 
   const box = document.getElementById('s-sources');
   box.innerHTML = '';
@@ -442,6 +447,7 @@ document.getElementById('settings-save').onclick = async () => {
     enabled_sources: enabled,
     fetch_interval_seconds: parseInt(document.getElementById('s-interval').value, 10),
     retention_days: parseInt(document.getElementById('s-retention').value, 10),
+    page_size: parseInt(document.getElementById('s-page-size').value, 10),
   };
   const res = await fetch('/api/settings', {
     method: 'PUT',
@@ -454,11 +460,15 @@ document.getElementById('settings-save').onclick = async () => {
     msgEl.className = 'error';
     return;
   }
-  msgEl.textContent = 'Gespeichert. Wird beim nächsten Abruf wirksam.';
+  const saved = await res.json();
+  LIMIT = saved.settings.page_size;
+  msgEl.textContent = 'Gespeichert. Wird sofort wirksam.';
   msgEl.className = 'ok';
   await loadSources();
   await loadDates();
   await loadLevels();
+  offset = 0;
+  await load();
   await loadStatus();
   setTimeout(closeSettings, 900);
 };
@@ -506,6 +516,8 @@ updateBtn.onclick = async () => {
 
 (async function init() {
   updateRangeUI();
+  const settingsRes = await fetch('/api/settings');
+  LIMIT = (await settingsRes.json()).settings.page_size;
   await loadSources();
   await loadDates();
   await loadLevels();

@@ -18,6 +18,9 @@ No formal releases yet — entries are grouped by what shipped, not by tag.
   the tail view left off, instead of silently no-op'ing.
 
 ### Added
+- "Zeilen pro Seite" setting in the settings panel (default raised from a
+  hardcoded 1000 to 5000, adjustable 100-20000) — controls the page size
+  for both "Heute (live)" tail mode and normal day paging.
 - "Zeitraum" from/to datetime picker in the header, as an alternative to
   the day dropdown, for viewing an arbitrary time window instead of a
   whole calendar day — backed by new `from`/`to` filters on `/api/logs`
