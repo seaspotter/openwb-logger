@@ -35,6 +35,10 @@ No formal releases yet — entries are grouped by what shipped, not by tag.
   (system preference only decides the very first, pre-`localStorage` load).
 
 ### Changed
+- Replaced native browser `confirm()`/`alert()`/`prompt()` (the update
+  button's confirmation, paste-upload errors, and the paste link display)
+  with in-app toasts and a modal, matching the pattern already used in
+  `knxpilot` — these no longer open as a separate browser-chrome popup.
 - Export ("Exportieren") no longer has separate "Zeile von/bis" line-index
   fields — that concept stopped corresponding to anything visible once
   paging became cursor-based, so it was just confusing (which line is

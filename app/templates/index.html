@@ -95,6 +95,29 @@
   #update-msg { font-size: 12px; margin-top: 6px; min-height: 16px; }
   #update-msg.error { color: var(--error); }
   #update-msg.ok { color: var(--accent); }
+
+  .modal-overlay {
+    display: flex; position: fixed; inset: 0; background: var(--backdrop);
+    align-items: flex-start; justify-content: center; padding-top: 8vh; z-index: 20;
+  }
+  .modal-card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    width: min(380px, 92vw); padding: 18px 20px;
+  }
+  .modal-card p { margin: 0 0 14px; font-size: 14px; color: var(--text); }
+  .modal-card input[type=text] { width: 100%; margin-bottom: 14px; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+  .toast-container {
+    position: fixed; bottom: 18px; right: 18px; z-index: 30;
+    display: flex; flex-direction: column; gap: 8px; max-width: 340px;
+  }
+  .toast {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 14px; font-size: 13px; color: var(--text); cursor: pointer;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  }
+  .toast.error { border-color: var(--error); color: var(--error); }
+  .toast.ok { border-color: var(--accent); }
 </style>
 </head>
 <body>
@@ -186,6 +209,85 @@
 </div>
 
 <script>
+// ---- Toasts & confirm/link modal (replaces native alert()/confirm()/prompt(),
+// which open as separate browser-chrome popups instead of staying in-app --
+// same pattern used in knxpilot) ----
+function getToastContainer() {
+  let el = document.querySelector('.toast-container');
+  if (!el) {
+    el = document.createElement('div');
+    el.className = 'toast-container';
+    document.body.appendChild(el);
+  }
+  return el;
+}
+
+function showToast(message, type = 'info', { sticky = false } = {}) {
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.textContent = message;
+  toast.onclick = () => toast.remove();
+  getToastContainer().appendChild(toast);
+  if (!sticky) setTimeout(() => toast.remove(), 4000);
+  return toast;
+}
+
+// onClose fires whenever the modal closes for ANY reason (Escape, backdrop
+// click, or the caller's own close()) -- callers that need to settle a
+// promise on every close path, not just their own buttons, should use it,
+// guarding against double-settling since it also fires after close().
+function openModal(bodyHtml, { onClose } = {}) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `<div class="modal-card">${bodyHtml}</div>`;
+  document.body.appendChild(overlay);
+  const close = () => {
+    document.removeEventListener('keydown', onKeydown);
+    overlay.remove();
+    if (onClose) onClose();
+  };
+  const onKeydown = (ev) => { if (ev.key === 'Escape') close(); };
+  overlay.addEventListener('click', (ev) => { if (ev.target === overlay) close(); });
+  document.addEventListener('keydown', onKeydown);
+  return { overlay, close };
+}
+
+function showConfirm(message) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const modal = openModal(`
+      <p></p>
+      <div class="modal-actions">
+        <button data-action="cancel">Abbrechen</button>
+        <button data-action="confirm">OK</button>
+      </div>`, {
+      onClose: () => { if (!settled) { settled = true; resolve(false); } },
+    });
+    modal.overlay.querySelector('p').textContent = message;
+    modal.overlay.addEventListener('click', (ev) => {
+      const action = ev.target.dataset && ev.target.dataset.action;
+      if (action === 'confirm') { settled = true; resolve(true); modal.close(); }
+      else if (action === 'cancel') modal.close();
+    });
+  });
+}
+
+function showLink(message, url) {
+  const modal = openModal(`
+    <p></p>
+    <input type="text" readonly>
+    <div class="modal-actions">
+      <button data-action="close">Schließen</button>
+    </div>`);
+  modal.overlay.querySelector('p').textContent = message;
+  const input = modal.overlay.querySelector('input');
+  input.value = url;
+  input.onclick = () => input.select();
+  modal.overlay.addEventListener('click', (ev) => {
+    if (ev.target.dataset && ev.target.dataset.action === 'close') modal.close();
+  });
+}
+
 const sourceEl = document.getElementById('source');
 const dayEl = document.getElementById('day');
 const levelEl = document.getElementById('level');
@@ -515,13 +617,14 @@ pasteExportBtn.onclick = async () => {
     const res = await fetch('/api/logs/export/paste?' + exportParams().toString(), { method: 'POST' });
     const data = await res.json();
     if (!res.ok) {
-      alert(data.detail || 'Senden an Paste fehlgeschlagen');
+      showToast(data.detail || 'Senden an Paste fehlgeschlagen', 'error', { sticky: true });
       return;
     }
-    try { await navigator.clipboard.writeText(data.url); } catch (e) { /* clipboard unavailable */ }
-    prompt('Link (in Zwischenablage kopiert, falls möglich):', data.url);
+    let copied = false;
+    try { await navigator.clipboard.writeText(data.url); copied = true; } catch (e) { /* clipboard unavailable */ }
+    showLink(copied ? 'Link (in Zwischenablage kopiert):' : 'Link:', data.url);
   } catch (e) {
-    alert('Senden an Paste fehlgeschlagen: ' + e.message);
+    showToast('Senden an Paste fehlgeschlagen: ' + e.message, 'error', { sticky: true });
   } finally {
     pasteExportBtn.disabled = false;
     pasteExportBtn.textContent = originalText;
@@ -665,7 +768,7 @@ async function waitForRestartThenReload() {
 }
 
 updateBtn.onclick = async () => {
-  if (!confirm('Neueste Version laden und die Anwendung jetzt neu starten?')) return;
+  if (!(await showConfirm('Neueste Version laden und die Anwendung jetzt neu starten?'))) return;
   updateBtn.disabled = true;
   const originalText = updateBtn.textContent;
   updateBtn.textContent = 'Wird aktualisiert...';
