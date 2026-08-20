@@ -11,6 +11,39 @@ docker compose up -d --build
 This starts two services: `timescaledb` (TimescaleDB on Postgres 16, data
 in the `timescale_data` named volume) and `app` (this tool, port 8080).
 
+## Running on Proxmox (Ubuntu Server)
+
+Two options for the container itself; everything after that is identical
+to any other Ubuntu host.
+
+**LXC** (lighter, needs one tweak): create an unprivileged Ubuntu Server
+22.04/24.04 LXC — 2 vCPU, 2–4 GB RAM, 15–20 GB disk (TimescaleDB is the
+heavier of the two services). Docker needs kernel features LXC blocks by
+default, so before first boot: **Resources → Options → Features**, enable
+**Nesting** and **keyctl**. Without this, `docker compose up` fails or the
+containers won't start.
+
+**VM** (simpler, no caveats): a normal Ubuntu Server VM (ISO or
+cloud-init), same sizing. Docker just works.
+
+Either way:
+
+```bash
+curl -fsSL https://get.docker.com | sh
+git clone https://github.com/seaspotter/openwb-logger.git
+cd openwb-logger
+cp .env.example .env
+nano .env   # set a real POSTGRES_PASSWORD
+docker compose up -d --build
+```
+
+Then open `http://<container-ip>:8080` and set up openWB's address from
+the settings panel. One thing worth checking first: the container needs
+to be on a network/VLAN that can actually reach the openWB device (the
+same bridge as your LAN, not an isolated Proxmox-internal network) — on
+the wrong network, every source just shows a `last_error` in the status
+bar.
+
 ## Configuration
 
 There is deliberately almost nothing to configure in `.env` — where openWB
