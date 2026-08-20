@@ -29,6 +29,14 @@ DEFAULT_OPENWB_RAMDISK_PATH = "/openWB/ramdisk"
 DEFAULT_FETCH_INTERVAL_SECONDS = 600  # 10 min
 DEFAULT_RETENTION_DAYS = 30
 DEFAULT_PAGE_SIZE = 5000
+# openWB's own pastebin, https://github.com/lucko/paste self-hosted --
+# verified against the live instance: the frontend at paste.openwb.de
+# serves a React app whose compiled JS points its uploads at bytebin.
+# openwb.de/post (bytebin is paste's storage backend), and the resulting
+# key is viewable at paste.openwb.de/<key>. Configurable in case that ever
+# changes or someone points this at their own instance.
+DEFAULT_PASTE_UPLOAD_URL = "https://bytebin.openwb.de/post"
+DEFAULT_PASTE_VIEW_URL = "https://paste.openwb.de/"
 
 MIN_FETCH_INTERVAL_SECONDS = 60
 MAX_FETCH_INTERVAL_SECONDS = 86400
@@ -47,6 +55,8 @@ class RuntimeSettings(TypedDict):
     fetch_interval_seconds: int
     retention_days: int
     page_size: int
+    paste_upload_url: str
+    paste_view_url: str
 
 
 def defaults() -> RuntimeSettings:
@@ -57,6 +67,8 @@ def defaults() -> RuntimeSettings:
         "fetch_interval_seconds": DEFAULT_FETCH_INTERVAL_SECONDS,
         "retention_days": DEFAULT_RETENTION_DAYS,
         "page_size": DEFAULT_PAGE_SIZE,
+        "paste_upload_url": DEFAULT_PASTE_UPLOAD_URL,
+        "paste_view_url": DEFAULT_PASTE_VIEW_URL,
     }
 
 
@@ -115,6 +127,18 @@ def validate(patch: dict) -> dict:
                 f"Die Seitengröße muss zwischen {MIN_PAGE_SIZE} und {MAX_PAGE_SIZE} liegen"
             )
         clean["page_size"] = size
+
+    if "paste_upload_url" in patch:
+        url = str(patch["paste_upload_url"]).strip()
+        if not url.startswith(("http://", "https://")):
+            raise ValidationError("Die Paste-Upload-URL muss mit http:// oder https:// beginnen")
+        clean["paste_upload_url"] = url
+
+    if "paste_view_url" in patch:
+        url = str(patch["paste_view_url"]).strip()
+        if not url.startswith(("http://", "https://")):
+            raise ValidationError("Die Paste-Anzeige-URL muss mit http:// oder https:// beginnen")
+        clean["paste_view_url"] = url if url.endswith("/") else url + "/"
 
     return clean
 

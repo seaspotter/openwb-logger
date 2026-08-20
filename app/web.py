@@ -6,6 +6,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from pathlib import Path
 
+import httpx
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 from fastapi.responses import HTMLResponse, PlainTextResponse
 from fastapi.templating import Jinja2Templates
@@ -182,6 +183,21 @@ async def api_logs(
     }
 
 
+def _export_filename(source: str | None, day: date | None) -> str:
+    return f"openwb-{source or 'all'}-{day or 'export'}.log"
+
+
+async def _export_body(pool, day, search, level, source, from_, to) -> str:
+    """Everything matching the current filter, gap-free and in order --
+    exactly what's described by the active source/day-or-Zeitraum/level/
+    search selection, not an arbitrary line-index slice (that concept
+    doesn't correspond to anything visible once paging is cursor-based;
+    see CHANGELOG)."""
+    where, params = _filters(day, search, level, source, from_, to)
+    rows = await pool.fetch(f"SELECT raw FROM log_lines {where} ORDER BY ts, id", *params)
+    return "\n".join(r["raw"] for r in rows) + ("\n" if rows else "")
+
+
 @router.get("/api/logs/export")
 async def api_export(
     day: date | None = None,
@@ -190,18 +206,54 @@ async def api_export(
     source: str | None = None,
     from_: datetime | None = Query(default=None, alias="from"),
     to: datetime | None = None,
-    start: int = 0,
-    end: int | None = None,
 ):
     pool = get_pool()
-    where, params = _filters(day, search, level, source, from_, to)
-    rows = await pool.fetch(f"SELECT raw FROM log_lines {where} ORDER BY ts, id", *params)
-    snippet = rows[start:end] if end is not None else rows[start:]
-    body = "\n".join(r["raw"] for r in snippet) + ("\n" if snippet else "")
-    filename = f"openwb-{source or 'all'}-{day or 'export'}.log"
+    body = await _export_body(pool, day, search, level, source, from_, to)
     return PlainTextResponse(
-        body, headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        body,
+        headers={"Content-Disposition": f'attachment; filename="{_export_filename(source, day)}"'},
     )
+
+
+@router.post("/api/logs/export/paste")
+async def api_export_paste(
+    day: date | None = None,
+    search: str | None = None,
+    level: str | None = None,
+    source: str | None = None,
+    from_: datetime | None = Query(default=None, alias="from"),
+    to: datetime | None = None,
+):
+    """Uploads the current filter's export to openWB's paste instance
+    (https://github.com/lucko/paste, self-hosted) and returns a shareable
+    link. Same "only on an explicit button click" rule the paste API's own
+    terms require for its official instance -- this endpoint only ever
+    runs from the user clicking the button, never automatically."""
+    pool = get_pool()
+    body = await _export_body(pool, day, search, level, source, from_, to)
+    if not body:
+        raise HTTPException(status_code=400, detail="Keine Zeilen für den aktuellen Filter")
+
+    rt = await get_settings(pool)
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                rt["paste_upload_url"],
+                content=body.encode("utf-8"),
+                headers={
+                    "Content-Type": "text/plain",
+                    "User-Agent": "openwb-logger (github.com/seaspotter/openwb-logger)",
+                },
+                timeout=30,
+            )
+        resp.raise_for_status()
+        key = resp.json()["key"]
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"Paste-Upload fehlgeschlagen: {exc}")
+    except (KeyError, ValueError):
+        raise HTTPException(status_code=502, detail="Paste-Server hat eine unerwartete Antwort geliefert")
+
+    return {"url": f"{rt['paste_view_url']}{key}"}
 
 
 @router.post("/api/fetch-now")

@@ -65,3 +65,15 @@ def test_validate_rejects_page_size_out_of_range():
         validate({"page_size": 50})
     with pytest.raises(ValidationError):
         validate({"page_size": 50000})
+
+
+def test_validate_rejects_paste_urls_without_scheme():
+    with pytest.raises(ValidationError):
+        validate({"paste_upload_url": "bytebin.openwb.de/post"})
+    with pytest.raises(ValidationError):
+        validate({"paste_view_url": "paste.openwb.de"})
+
+
+def test_validate_normalizes_paste_view_url_trailing_slash():
+    clean = validate({"paste_view_url": "https://paste.example.com"})
+    assert clean["paste_view_url"] == "https://paste.example.com/"

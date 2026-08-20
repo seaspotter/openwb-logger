@@ -115,9 +115,8 @@
   <input id="search" type="text" placeholder="Suchen...">
   <label class="check"><input type="checkbox" id="live" checked> Live</label>
   <div id="right-controls">
-    Zeile <input id="from" type="number" value="0" min="0">
-    bis <input id="to" type="number" placeholder="Ende">
     <button id="export">Exportieren</button>
+    <button id="paste-export">An Paste senden</button>
     <button id="sort-toggle" class="icon" title="Sortierung umkehren">&#8645;</button>
     <button id="fetch-now">Jetzt abrufen</button>
     <button id="theme-toggle" class="icon" title="Design wechseln">&#9680;</button>
@@ -160,6 +159,14 @@
     <div class="field">
       <label for="s-page-size">Zeilen pro Seite</label>
       <input id="s-page-size" type="number" min="100" max="20000" step="100">
+    </div>
+    <div class="field">
+      <label for="s-paste-upload">Paste-Upload-URL</label>
+      <input id="s-paste-upload" type="text" placeholder="https://bytebin.openwb.de/post">
+    </div>
+    <div class="field">
+      <label for="s-paste-view">Paste-Anzeige-URL</label>
+      <input id="s-paste-view" type="text" placeholder="https://paste.openwb.de/">
     </div>
     <div class="field">
       <label>Version</label>
@@ -407,6 +414,9 @@ async function load() {
     nextBtn.disabled = !data.has_more_after;
   }
 
+  document.getElementById('export').disabled = liveTail;
+  pasteExportBtn.disabled = liveTail;
+
   if (liveTail) logEl.scrollTop = sortDesc ? 0 : logEl.scrollHeight;
 }
 
@@ -473,16 +483,44 @@ logEl.addEventListener('scroll', () => {
   if (!(sortDesc ? atTop : atBottom)) liveEl.checked = false;
 });
 
-document.getElementById('export').onclick = () => {
-  const lineFrom = document.getElementById('from').value || 0;
-  const lineTo = document.getElementById('to').value;
-  const p = params({ start: lineFrom });
+// Export always covers exactly the active filter (source/day-or-Zeitraum/
+// level/search) -- no separate line-range concept, which stopped
+// corresponding to anything visible once paging became cursor-based (see
+// CHANGELOG). Both buttons are disabled while live-following, since
+// exporting a constantly-moving target doesn't make sense -- see load().
+function exportParams() {
+  const p = params({});
   if (!hasCustomRange()) {
     const isToday = dayEl.value === '__today__';
     p.set('day', isToday ? new Date().toISOString().slice(0, 10) : dayEl.value);
   }
-  if (lineTo) p.set('end', lineTo);
-  window.open('/api/logs/export?' + p.toString(), '_blank');
+  return p;
+}
+
+document.getElementById('export').onclick = () => {
+  window.open('/api/logs/export?' + exportParams().toString(), '_blank');
+};
+
+const pasteExportBtn = document.getElementById('paste-export');
+pasteExportBtn.onclick = async () => {
+  pasteExportBtn.disabled = true;
+  const originalText = pasteExportBtn.textContent;
+  pasteExportBtn.textContent = 'Wird gesendet...';
+  try {
+    const res = await fetch('/api/logs/export/paste?' + exportParams().toString(), { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.detail || 'Senden an Paste fehlgeschlagen');
+      return;
+    }
+    try { await navigator.clipboard.writeText(data.url); } catch (e) { /* clipboard unavailable */ }
+    prompt('Link (in Zwischenablage kopiert, falls möglich):', data.url);
+  } catch (e) {
+    alert('Senden an Paste fehlgeschlagen: ' + e.message);
+  } finally {
+    pasteExportBtn.disabled = false;
+    pasteExportBtn.textContent = originalText;
+  }
 };
 
 const fetchNowBtn = document.getElementById('fetch-now');
@@ -514,6 +552,8 @@ async function openSettings() {
   document.getElementById('s-interval').value = data.settings.fetch_interval_seconds;
   document.getElementById('s-retention').value = data.settings.retention_days;
   document.getElementById('s-page-size').value = data.settings.page_size;
+  document.getElementById('s-paste-upload').value = data.settings.paste_upload_url;
+  document.getElementById('s-paste-view').value = data.settings.paste_view_url;
 
   const box = document.getElementById('s-sources');
   box.innerHTML = '';
@@ -543,6 +583,8 @@ document.getElementById('settings-save').onclick = async () => {
     fetch_interval_seconds: parseInt(document.getElementById('s-interval').value, 10),
     retention_days: parseInt(document.getElementById('s-retention').value, 10),
     page_size: parseInt(document.getElementById('s-page-size').value, 10),
+    paste_upload_url: document.getElementById('s-paste-upload').value,
+    paste_view_url: document.getElementById('s-paste-view').value,
   };
   const res = await fetch('/api/settings', {
     method: 'PUT',

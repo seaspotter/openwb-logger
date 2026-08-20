@@ -28,6 +28,13 @@ No formal releases yet — entries are grouped by what shipped, not by tag.
   (system preference only decides the very first, pre-`localStorage` load).
 
 ### Changed
+- Export ("Exportieren") no longer has separate "Zeile von/bis" line-index
+  fields — that concept stopped corresponding to anything visible once
+  paging became cursor-based, so it was just confusing (which line is
+  "0"?). It now always exports exactly the active filter (source/day-or-
+  Zeitraum/level/search), same as what's on screen, and is disabled while
+  live-following (exporting a constantly-moving target doesn't make
+  sense) — pick a day, a Zeitraum, or pause "Live" first.
 - Log view is taller: `calc(100vh - 170px)` instead of a fixed `70vh`, so it
   fills the available window space instead of leaving a growing gap on
   tall windows.
@@ -67,6 +74,15 @@ No formal releases yet — entries are grouped by what shipped, not by tag.
   based on those flags instead of a total.
 
 ### Added
+- "An Paste senden" button next to "Exportieren" — uploads the current
+  filter's export to openWB's own paste instance
+  ([lucko/paste](https://github.com/lucko/paste), self-hosted at
+  `paste.openwb.de`) and copies the resulting shareable link to the
+  clipboard. Same filter/disabled-while-live rules as the file export
+  above. New `paste_upload_url`/`paste_view_url` settings (defaulting to
+  the verified working endpoints, `bytebin.openwb.de/post` and
+  `paste.openwb.de/`) in case that ever changes or you'd rather use your
+  own instance.
 - Quick Zeitraum buttons (15 Min / 30 Min / 1 Std / 2 Std) that set from/to
   to "now minus N" through "now" and load immediately — no more manually
   picking both datetime fields for the common "just show me recently"
