@@ -1,5 +1,15 @@
 # Development
 
+## Branching
+
+- `main` — stable, releasable. Nothing lands here directly.
+- `dev` — active development. Day-to-day work and commits happen here.
+
+When `dev` is in good shape, merge it into `main` (PR or fast-forward
+merge) and tag a release there — see `CHANGELOG.md` for what's shipped
+since the last one. `main` is what `DEPLOYMENT.md`'s `git clone` /
+`git pull` instructions assume.
+
 ## Setup
 
 Requires Python 3.12+ and a local TimescaleDB (easiest via Docker).
