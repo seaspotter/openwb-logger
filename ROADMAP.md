@@ -11,11 +11,13 @@ open an issue or just start working if something here matters to you.
 - [x] Multi log-source support (chargelog, mqtt, smarthome, soc, ...)
 - [x] Runtime-configurable settings (location, sources, retention,
       interval) via the UI, no restart, no environment variables
-- [x] Light/dark/system theme, UI in German
+- [x] Light/dark theme (system preference on first visit, then a plain
+      toggle), UI in German
 - [x] Manual "Jetzt abrufen" (fetch now) trigger + last-fetch timestamp in
       the UI, alongside the scheduled poll
-- [x] Optional in-app self-update button (git pull + rebuild + recreate via
-      a Docker-socket-launched sibling container), off by default
+- [x] Optional in-app self-update button (git pull + process restart,
+      via a repo bind-mount onto the container's WORKDIR — no Docker
+      socket, no rebuild)
 
 ## Next
 
@@ -27,9 +29,7 @@ open an issue or just start working if something here matters to you.
       a fixed localhost value and everything else is already configured
       from inside the app, not env vars.
 - [ ] Authentication / access control for the web UI (currently none —
-      LAN-only by convention, see DEPLOYMENT.md). Higher priority now that
-      self-update exists: anyone who enables it is putting a docker-socket-
-      backed endpoint behind that same lack of auth.
+      LAN-only by convention, see DEPLOYMENT.md).
 - [ ] `pg_trgm` index on `raw` for faster search once log volume grows
       large enough for a plain `ILIKE` scan to matter
 - [ ] Per-source retention and per-source poll interval (right now both

@@ -16,6 +16,10 @@ No formal releases yet — entries are grouped by what shipped, not by tag.
   always re-ran the tail query and ignored `offset` in that mode. Paging
   now drops out of live-follow (unchecking "Live") and pages from wherever
   the tail view left off, instead of silently no-op'ing.
+- Theme toggle only visibly changed on the *second* click: it cycled
+  system → light → dark → system, and system → light was a silent no-op
+  whenever the OS was already in light mode. Now a plain light/dark flip
+  (system preference only decides the very first, pre-`localStorage` load).
 
 ### Added
 - "Zeilen pro Seite" setting in the settings panel (default raised from a
@@ -35,11 +39,14 @@ No formal releases yet — entries are grouped by what shipped, not by tag.
   remembered in `localStorage`. Purely a display-order flip on already-
   fetched lines; doesn't change what's fetched or how paging works.
 - Optional in-app self-update: an "Update" button in the settings panel
-  (`POST /api/update`) runs `git pull` then rebuilds and recreates the
-  stack via a detached sibling container over the Docker socket. Off by
-  default — needs `HOST_REPO_DIR` in `.env` plus starting with
-  `-f docker-compose.selfupdate.yml`, since it requires mounting the
-  Docker socket into the app container. See `DEPLOYMENT.md`.
+  runs `git pull --ff-only` against the repo checkout (bind-mounted onto
+  the container's `WORKDIR` by `docker-compose.yml`) and restarts the
+  process, which `restart: unless-stopped` brings back up with the new
+  code — no Docker socket, no image rebuild, no sibling container. Falls
+  back to telling you to `docker compose up -d --build` yourself if the
+  pull touched `requirements.txt`/`Dockerfile`. A "Prüfen" button checks
+  for an update (`git fetch` + compare) without applying it. See
+  `DEPLOYMENT.md`.
 - Backfill on first-ever fetch: when a source has no saved tail state yet
   (fresh deployment, or a source just enabled in the settings panel), the
   fetcher now reads its existing rotated backups (oldest first) before the

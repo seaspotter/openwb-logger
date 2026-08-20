@@ -157,6 +157,7 @@
       <label>Version</label>
       <div id="update-info">
         <span id="update-commit">-</span>
+        <button id="update-check" type="button">Prüfen</button>
         <button id="update-btn" type="button">Update</button>
       </div>
       <div id="update-msg"></div>
@@ -229,19 +230,23 @@ sortToggleBtn.onclick = () => {
 let lastLines = [], lastTotal = 0, lastOffset = 0;
 
 // ---- Design (hell/dunkel) ----
+// A plain light/dark toggle, not a system/light/dark cycle: the previous
+// 3-way cycle meant the first click (system -> light) was often a visual
+// no-op whenever the OS was already in light mode, making the button look
+// broken ("only works on the second click").
 const THEME_KEY = 'openwb-logger-theme';
-function applyTheme(mode) {
-  if (mode === 'system') document.documentElement.removeAttribute('data-theme');
-  else document.documentElement.setAttribute('data-theme', mode);
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
 }
-function cycleTheme() {
-  const current = localStorage.getItem(THEME_KEY) || 'system';
-  const next = { system: 'light', light: 'dark', dark: 'system' }[current];
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme') || 'light';
+  const next = current === 'light' ? 'dark' : 'light';
   localStorage.setItem(THEME_KEY, next);
   applyTheme(next);
 }
-applyTheme(localStorage.getItem(THEME_KEY) || 'system');
-document.getElementById('theme-toggle').onclick = cycleTheme;
+applyTheme(localStorage.getItem(THEME_KEY) ||
+  (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+document.getElementById('theme-toggle').onclick = toggleTheme;
 
 // ---- Log-Ansicht ----
 function escapeHtml(s) {
@@ -475,41 +480,75 @@ document.getElementById('settings-save').onclick = async () => {
 
 // ---- Update ----
 const updateBtn = document.getElementById('update-btn');
+const updateCheckBtn = document.getElementById('update-check');
 const updateCommitEl = document.getElementById('update-commit');
 const updateMsgEl = document.getElementById('update-msg');
 
 async function loadUpdateInfo() {
   updateMsgEl.textContent = '';
   updateMsgEl.className = '';
-  const res = await fetch('/api/update/status');
+  const res = await fetch('/api/update/version');
   const data = await res.json();
   updateCommitEl.textContent = data.current_commit ? data.current_commit : '-';
   updateBtn.disabled = !data.available;
-  updateBtn.title = data.available ? '' : 'Self-Update ist nicht konfiguriert (HOST_REPO_DIR fehlt)';
-  if (data.last_update) {
-    updateMsgEl.textContent = data.last_update.detail;
-    updateMsgEl.className = data.last_update.ok ? 'ok' : 'error';
+  updateCheckBtn.disabled = !data.available;
+  const title = data.available
+    ? ''
+    : 'Kein Git-Checkout unter /app (Bind-Mount fehlt?) — siehe DEPLOYMENT.md';
+  updateBtn.title = title;
+  updateCheckBtn.title = title;
+}
+
+updateCheckBtn.onclick = async () => {
+  updateMsgEl.textContent = 'Suche nach Updates...';
+  updateMsgEl.className = '';
+  const data = await (await fetch('/api/update/check')).json();
+  if (data.error) {
+    updateMsgEl.textContent = 'Prüfung fehlgeschlagen: ' + data.error;
+    updateMsgEl.className = 'error';
+    return;
   }
+  updateMsgEl.textContent = data.update_available
+    ? `Update verfügbar (${data.current} → ${data.latest})`
+    : `Aktuell (${data.current})`;
+  updateMsgEl.className = 'ok';
+};
+
+async function waitForRestartThenReload() {
+  // docker-compose's restart policy brings the process back within a
+  // second or two -- poll until it answers again, then reload so the
+  // (possibly also-updated) frontend gets refreshed too.
+  for (let i = 0; i < 30; i++) {
+    await new Promise(r => setTimeout(r, 1000));
+    try {
+      if ((await fetch('/api/status')).ok) { window.location.reload(); return; }
+    } catch (e) { /* still restarting */ }
+  }
+  updateMsgEl.textContent = 'Startet noch... bitte in Kürze manuell neu laden.';
 }
 
 updateBtn.onclick = async () => {
-  if (!confirm('Update jetzt starten? Die Anwendung wird dabei neu gebaut und neu gestartet.')) return;
+  if (!confirm('Neueste Version laden und die Anwendung jetzt neu starten?')) return;
   updateBtn.disabled = true;
   const originalText = updateBtn.textContent;
-  updateBtn.textContent = 'Wird gestartet...';
+  updateBtn.textContent = 'Wird aktualisiert...';
   try {
-    const res = await fetch('/api/update', { method: 'POST' });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      updateMsgEl.textContent = err.detail || 'Update konnte nicht gestartet werden';
+    const result = await (await fetch('/api/update', { method: 'POST' })).json();
+    if (!result.ok) {
+      updateMsgEl.textContent = 'Update fehlgeschlagen: ' + result.message;
       updateMsgEl.className = 'error';
-      updateBtn.disabled = false;
-      updateBtn.textContent = originalText;
       return;
     }
-    updateMsgEl.textContent = 'Update gestartet. Die Anwendung startet in Kürze neu — diese Seite dann manuell neu laden.';
+    if (result.restarting) {
+      updateMsgEl.textContent = 'Startet neu...';
+      updateMsgEl.className = 'ok';
+      await waitForRestartThenReload();
+      return;
+    }
+    updateMsgEl.textContent = result.message;
     updateMsgEl.className = 'ok';
   } finally {
+    updateBtn.disabled = false;
     updateBtn.textContent = originalText;
   }
 };

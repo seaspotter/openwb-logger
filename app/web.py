@@ -3,11 +3,10 @@ export, status, and runtime settings. All backed by TimescaleDB via
 asyncpg -- no other storage."""
 from __future__ import annotations
 
-import asyncio
 from datetime import date, datetime
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 from fastapi.responses import HTMLResponse, PlainTextResponse
 from fastapi.templating import Jinja2Templates
 from starlette.requests import Request
@@ -16,7 +15,7 @@ from .db import get_pool
 from .fetcher import fetcher
 from .log_catalog import CATALOG
 from .runtime_settings import ValidationError, get_settings, update_settings
-from .updater import get_current_commit, get_update_status, run_update, self_update_available
+from .updater import check_for_update, get_current_commit, run_update, self_update_available
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
@@ -196,30 +195,26 @@ async def api_status():
     }
 
 
+@router.get("/api/update/version")
+def api_update_version():
+    """Local-only (no network), cheap enough to call on every settings-panel
+    open -- unlike /api/update/check below, which does a git fetch."""
+    return {"current_commit": get_current_commit(), "available": self_update_available()}
+
+
+@router.get("/api/update/check")
+def api_update_check():
+    return check_for_update()
+
+
 @router.post("/api/update")
-async def api_update():
-    """Kicks off a self-update (git pull + rebuild + recreate) in the
-    background and returns immediately -- the rebuild/recreate step
-    survives this container being replaced (see app/updater.py), but the
-    request/response cycle doesn't need to."""
-    pool = get_pool()
-    if not self_update_available():
-        raise HTTPException(
-            status_code=400,
-            detail="Self-Update ist nicht konfiguriert (HOST_REPO_DIR fehlt). Siehe DEPLOYMENT.md.",
-        )
-    asyncio.create_task(run_update(pool))
-    return {"status": "started"}
-
-
-@router.get("/api/update/status")
-async def api_update_status():
-    pool = get_pool()
-    return {
-        "available": self_update_available(),
-        "current_commit": await get_current_commit(),
-        "last_update": await get_update_status(pool),
-    }
+def api_update(background_tasks: BackgroundTasks):
+    """git pull, then -- unless requirements.txt/Dockerfile changed -- restart
+    this process so docker-compose's `restart: unless-stopped` brings it back
+    with the freshly pulled code (see app/updater.py). Always 200; the result
+    dict's `ok`/`message` fields carry success/failure instead of an HTTP
+    error, since a failed pull isn't a request-level problem."""
+    return run_update(background_tasks)
 
 
 @router.get("/api/settings")

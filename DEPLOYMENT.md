@@ -85,47 +85,34 @@ Schema changes are additive and applied automatically at startup
 (`CREATE ... IF NOT EXISTS` / `ALTER ... ADD COLUMN IF NOT EXISTS` in
 `app/db.py`) — no separate migration step.
 
-### Self-update from the UI (optional)
+### Self-update from the UI
 
-The settings panel has an "Update" button (`POST /api/update`) that does
-the above from inside the app itself: `git pull`, then rebuild and recreate
-the stack. It's **off by default** and needs an explicit opt-in, because it
-requires mounting the Docker socket into the app container — root-equivalent
-access to the host — which the base `docker-compose.yml` deliberately never
-does on its own.
+The settings panel has an "Update" button that runs `git pull --ff-only`
+against the repo checkout, then restarts the process so it picks up the
+new code — no Docker socket, no image rebuild, no separate container
+involved. This works because `docker-compose.yml` bind-mounts the whole
+repo onto the container's `WORKDIR` (`- .:/app`), so the files the running
+process reads *are* the git checkout; `git pull` updates them in place,
+and `docker-compose`'s `restart: unless-stopped` brings the process back
+up immediately after it exits (see `app/updater.py`). If you commented out
+that bind mount for a fully immutable deployment, the Update button and
+`/api/update/*` endpoints just report `self_update_available: false` and
+the UI hides them, rather than showing a confusing git error.
 
-To enable it:
+**This only covers pure code/template changes.** If a pull brings in a
+`requirements.txt` or `Dockerfile` change, the endpoint deliberately does
+*not* restart — the new dependency isn't installed in the running
+container yet — and instead tells you to run:
+```bash
+docker compose up -d --build
+```
+Check `CHANGELOG.md` after an update if you're unsure whether that applies.
 
-1. In `.env`, set `HOST_REPO_DIR` to this repo's **absolute path on the
-   Docker host** (e.g. `/home/pi/openwb-logger`) — not a path inside any
-   container. This is needed because the rebuild runs in a short-lived
-   sibling container launched over the socket ("Docker-outside-of-Docker");
-   volume paths for that sibling are resolved by the host daemon, so only a
-   host-absolute path works.
-2. Start (or re-up) with the override file:
-   ```bash
-   docker compose -f docker-compose.yml -f docker-compose.selfupdate.yml up -d --build
-   ```
-
-**Think about this before enabling it**: the web UI has no authentication
-(see below). Combined with docker-socket access, anyone who can reach the
-UI can trigger a rebuild, and anything that ever compromises the app
-process gets host root through the socket. This is fine on a trusted LAN
-where you're the only one who can reach it; if the UI is reachable more
-broadly, put it behind an authenticated reverse proxy *before* enabling
-self-update, not after.
-
-What actually happens on click: `git pull --ff-only` runs in this
-container against the bind-mounted repo; if that succeeds, a detached
-`docker:27-cli` sibling container is launched (over the socket) to run
-`docker compose up -d --build`, independent of this container's own
-lifecycle — necessary because that command's job is to replace the very
-container that would otherwise be running it. The HTTP request returns as
-soon as the rebuild is *launched*, not when it *finishes*; expect the page
-to need a manual reload after ~30–60s once the container comes back with
-the new image. The outcome of the git-pull step (or a config error if
-`HOST_REPO_DIR` isn't set) is persisted and shown in the settings panel
-next time you open it, via `GET /api/update/status`.
+**Security note**: the web UI has no authentication (see below). Since
+self-update no longer needs the Docker socket, the worst a compromised
+request can do here is pull whatever's on the configured git remote/branch
+and restart the process — not take over the host. Still, if the UI is
+reachable beyond your LAN, put it behind an authenticated reverse proxy.
 
 ## Running behind a reverse proxy
 
@@ -148,13 +135,12 @@ exposing port 8080 directly.
   used for the Postgres service (a plain `postgres` image won't have the
   extension) — check `docker-compose.yml` still points at
   `timescale/timescaledb:latest-pg16`.
-- **Update button is disabled**: `HOST_REPO_DIR` isn't set, or you're not
-  running with `-f docker-compose.selfupdate.yml` — see "Self-update from
-  the UI" above.
-- **Update button says it started, but nothing changes**: check the
-  sibling updater container's own output —
-  `docker ps -a --filter ancestor=docker:27-cli` to find it (it's `--rm`,
-  so it disappears once done; re-trigger and run that command quickly if
-  you need to catch its logs) — and confirm `HOST_REPO_DIR` in `.env`
-  really is this repo's path *on the host*, not `/repo` or any other
-  in-container path.
+- **Update button is missing/disabled**: `docker-compose.yml`'s `- .:/app`
+  bind mount is commented out, or `/app/.git` doesn't exist for some other
+  reason (e.g. deployed from a tarball rather than `git clone`) — see
+  "Self-update from the UI" above.
+- **`git pull` fails inside the container with a permission or "dubious
+  ownership" error**: the container runs as root (see Dockerfile), so
+  ownership mismatches are usually not the issue — more likely the repo
+  has local modifications or diverged history. `git -C . status` on the
+  host (same directory) will show what's blocking the fast-forward.

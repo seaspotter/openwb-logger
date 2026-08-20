@@ -25,6 +25,15 @@ services:
       PORT: ${PORT:-8080}
     ports:
       - "${PORT:-8080}:${PORT:-8080}"
+    volumes:
+      # Mounts the whole repo checkout onto WORKDIR (/app), so `git pull`
+      # (run either on the host or via the in-app "Update" button, which
+      # runs it inside the container against this same mount) updates the
+      # running code immediately -- a restart then picks it up, no image
+      # rebuild needed for pure code/template changes. See app/updater.py
+      # and DEPLOYMENT.md. Comment this out for a fully immutable
+      # deployment; self-update then just won't be offered in the UI.
+      - .:/app
 
 volumes:
   timescale_data:
