@@ -141,6 +141,13 @@ async def api_export(
     )
 
 
+@router.post("/api/fetch-now")
+async def api_fetch_now():
+    pool = get_pool()
+    await fetcher.fetch_once(pool)
+    return {"ok": True}
+
+
 @router.get("/api/status")
 async def api_status():
     pool = get_pool()

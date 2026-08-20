@@ -2,19 +2,31 @@
 how long to keep them, and how often to poll. Stored in the `app_settings`
 table (one JSONB row) so changes made through the web UI take effect on the
 next poll cycle without a container restart -- unlike app/config.py, which
-holds deployment-level settings (DB connection, port, ...) fixed for the
-life of the process.
+holds infra-level settings (DB connection, port, ...) fixed for the life
+of the process.
+
+Deliberately no environment variables here: this is the tool's own
+configuration, meant to be set up once through the UI after first start,
+not wired up at deploy time. That keeps things simple for bundling the app
+together with its database into a single image later on.
 """
 from __future__ import annotations
 
 from typing import TypedDict
 
-from .config import settings as env_settings
 from .db import get_kv, set_kv
 from .log_catalog import CATALOG, DEFAULT_ENABLED
 
 _TABLE = "app_settings"
 _KEY = "config"
+
+# openWB devices commonly answer to this hostname via mDNS/avahi out of the
+# box, so it's a reasonable guess -- but still just a starting point the
+# user is expected to confirm/correct in the settings panel.
+DEFAULT_OPENWB_BASE_URL = "http://openwb"
+DEFAULT_OPENWB_RAMDISK_PATH = "/openWB/ramdisk"
+DEFAULT_FETCH_INTERVAL_SECONDS = 600  # 10 min
+DEFAULT_RETENTION_DAYS = 30
 
 MIN_FETCH_INTERVAL_SECONDS = 60
 MAX_FETCH_INTERVAL_SECONDS = 86400
@@ -32,11 +44,11 @@ class RuntimeSettings(TypedDict):
 
 def defaults() -> RuntimeSettings:
     return {
-        "openwb_base_url": env_settings.openwb_base_url,
-        "openwb_ramdisk_path": env_settings.openwb_ramdisk_path,
+        "openwb_base_url": DEFAULT_OPENWB_BASE_URL,
+        "openwb_ramdisk_path": DEFAULT_OPENWB_RAMDISK_PATH,
         "enabled_sources": list(DEFAULT_ENABLED),
-        "fetch_interval_seconds": env_settings.fetch_interval_seconds,
-        "retention_days": env_settings.retention_days,
+        "fetch_interval_seconds": DEFAULT_FETCH_INTERVAL_SECONDS,
+        "retention_days": DEFAULT_RETENTION_DAYS,
     }
 
 
@@ -52,30 +64,30 @@ def validate(patch: dict) -> dict:
     if "openwb_base_url" in patch:
         url = str(patch["openwb_base_url"]).strip().rstrip("/")
         if not url.startswith(("http://", "https://")):
-            raise ValidationError("openwb_base_url must start with http:// or https://")
+            raise ValidationError("Die openWB-Adresse muss mit http:// oder https:// beginnen")
         clean["openwb_base_url"] = url
 
     if "openwb_ramdisk_path" in patch:
         path = str(patch["openwb_ramdisk_path"]).strip()
         if not path.startswith("/"):
-            raise ValidationError("openwb_ramdisk_path must start with /")
+            raise ValidationError("Der Ramdisk-Pfad muss mit / beginnen")
         clean["openwb_ramdisk_path"] = path.rstrip("/")
 
     if "enabled_sources" in patch:
         sources = patch["enabled_sources"]
         if not isinstance(sources, list) or not sources:
-            raise ValidationError("enabled_sources must be a non-empty list")
+            raise ValidationError("Mindestens ein Log muss ausgewählt sein")
         unknown = [s for s in sources if s not in CATALOG]
         if unknown:
-            raise ValidationError(f"unknown log source(s): {', '.join(unknown)}")
+            raise ValidationError(f"Unbekannte Log-Quelle(n): {', '.join(unknown)}")
         clean["enabled_sources"] = sources
 
     if "fetch_interval_seconds" in patch:
         interval = int(patch["fetch_interval_seconds"])
         if not (MIN_FETCH_INTERVAL_SECONDS <= interval <= MAX_FETCH_INTERVAL_SECONDS):
             raise ValidationError(
-                f"fetch_interval_seconds must be between {MIN_FETCH_INTERVAL_SECONDS} "
-                f"and {MAX_FETCH_INTERVAL_SECONDS}"
+                f"Das Abrufintervall muss zwischen {MIN_FETCH_INTERVAL_SECONDS} "
+                f"und {MAX_FETCH_INTERVAL_SECONDS} Sekunden liegen"
             )
         clean["fetch_interval_seconds"] = interval
 
@@ -83,7 +95,8 @@ def validate(patch: dict) -> dict:
         days = int(patch["retention_days"])
         if not (MIN_RETENTION_DAYS <= days <= MAX_RETENTION_DAYS):
             raise ValidationError(
-                f"retention_days must be between {MIN_RETENTION_DAYS} and {MAX_RETENTION_DAYS}"
+                f"Die Aufbewahrungsdauer muss zwischen {MIN_RETENTION_DAYS} "
+                f"und {MAX_RETENTION_DAYS} Tagen liegen"
             )
         clean["retention_days"] = days
 

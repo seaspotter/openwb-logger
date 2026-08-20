@@ -13,33 +13,24 @@ in the `timescale_data` named volume) and `app` (this tool, port 8080).
 
 ## Configuration
 
-Everything below is read from environment variables **only as the initial
-seed** on first boot, written once into the `app_settings` table. After
-that, change it from the settings panel (gear icon) in the web UI — it
-takes effect on the next poll, no restart needed.
+There is deliberately almost nothing to configure in `.env` — where openWB
+is, which logs to collect, retention, and poll interval are all set up
+*inside the app* (settings panel, gear icon) after first start, stored in
+the database, and take effect on the next poll with no restart. That keeps
+`.env` down to pure infra wiring, which matters once this app and its
+database are bundled into a single image (see ROADMAP.md) — at that point
+there's nothing left here to set before first start at all.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `OPENWB_BASE_URL` | `http://openwb` | Base URL of your openWB web server, no trailing slash |
-| `OPENWB_RAMDISK_PATH` | `/openWB/ramdisk` | Ramdisk directory below the base URL |
-| `FETCH_INTERVAL_SECONDS` | `600` | Poll interval. Keep this well under how long it takes `main.log` to fill up (roughly an hour by default), so a missed poll can still be recovered from its `.1` backup |
-| `RETENTION_DAYS` | `30` | How many days of log lines to keep |
-
-Which logs are collected (`main` only, by default) is set from the UI, not
-an env var — see the settings panel.
-
-These are deployment-level, fixed for the life of the container (changing
-them means editing `.env` and restarting). Rotation depth (how many
-backups a log has) isn't here — it's per-source, defined in
-`app/log_catalog.py` to match openWB's own logger config:
-
-| Variable | Default | Meaning |
-|---|---|---|
-| `HTTP_TIMEOUT_SECONDS` | `15` | Per-request HTTP timeout |
-| `TAIL_WINDOW` | `50` | Lines of overlap kept per source to detect duplicates/rotation between polls |
-| `DATABASE_URL` | `postgresql://openwb_logger:openwb_logger@localhost:5432/openwb_logger` | Postgres/TimescaleDB connection string (docker-compose sets this for you from `POSTGRES_PASSWORD`) |
 | `POSTGRES_PASSWORD` | — | Set a real password in `.env`; used by both services |
 | `PORT` | `8080` | Web UI / API port |
+| `DATABASE_URL` | `postgresql://openwb_logger:openwb_logger@localhost:5432/openwb_logger` | Postgres/TimescaleDB connection string (docker-compose sets this for you from `POSTGRES_PASSWORD`; only relevant if you're not using docker-compose) |
+
+On first start, the app seeds its settings with hardcoded fallback
+defaults (`http://openwb`, `/openWB/ramdisk`, 600s, 30 days — see
+`DEFAULT_*` in `app/runtime_settings.py`) and only `main.log` enabled.
+Open the settings panel and correct them for your setup.
 
 ## State and backups
 
@@ -71,12 +62,13 @@ exposing port 8080 directly.
 ## Troubleshooting
 
 - **`/api/status` shows a `last_error` for a source**: the fetcher couldn't
-  reach that log's URL — check `OPENWB_BASE_URL`/`OPENWB_RAMDISK_PATH` (or
-  their settings-panel equivalents) and that the openWB device is
-  reachable from the container.
+  reach that log's URL — check the base URL/ramdisk path in the settings
+  panel and that the openWB device is reachable from the container. Use
+  the "Jetzt abrufen" (fetch now) button in the UI to retry immediately
+  and see the result without waiting for the next scheduled poll.
 - **Gaps keep appearing** (`total_gaps_detected` growing in `/api/status`):
   the poll interval is too long relative to how fast that log rotates —
-  shorten `FETCH_INTERVAL_SECONDS` for that log, or via the settings panel.
+  shorten the fetch interval in the settings panel.
 - **`create_hypertable` errors on startup**: the `timescaledb` image wasn't
   used for the Postgres service (a plain `postgres` image won't have the
   extension) — check `docker-compose.yml` still points at

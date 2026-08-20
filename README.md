@@ -21,13 +21,15 @@ filter, and export it — light or dark, your call.
   level, source, or date instead of grepping text.
 - **Retention** is enforced by a native TimescaleDB retention policy — old
   chunks are dropped automatically, no cron job.
-- **Runtime settings, no restart needed**: where openWB is, which logs to
-  collect, retention, and poll interval are all editable from a settings
-  panel in the UI and take effect on the next poll.
-- **Web UI**: browse any day, live-tail today with auto-refresh, filter by
-  source/level, search, export the current view (or a specific line range)
-  as a plain-text snippet, and switch between light, dark, or
-  system-matched theme.
+- **All setup lives in the app itself, not environment variables**: where
+  openWB is, which logs to collect, retention, and poll interval are all
+  configured from a settings panel in the UI (in German) and take effect
+  on the next poll — no redeploy needed. The only things left in `.env`
+  are pure infra wiring (DB password, port).
+- **Web UI** (German): browse any day, live-tail today with auto-refresh,
+  trigger an immediate fetch on demand, filter by source/level, search,
+  export the current view (or a specific line range) as a plain-text
+  snippet, and switch between light, dark, or system-matched theme.
 
 ## How it works
 
@@ -54,15 +56,14 @@ Full breakdown of each module in [CLAUDE.md](CLAUDE.md).
 git clone https://github.com/seaspotter/openwb-logger.git
 cd openwb-logger
 cp .env.example .env
-# edit .env: set OPENWB_BASE_URL to your openWB's address, and a real
-# POSTGRES_PASSWORD (these are just initial defaults — everything is
-# editable later from the settings panel in the UI)
+# edit .env: set a real POSTGRES_PASSWORD
 
 docker compose up -d --build
 ```
 
-Open http://localhost:8080 and click the gear icon to fine-tune source,
-retention, and poll interval.
+Open http://localhost:8080, click the gear icon (⚙), and enter your
+openWB's address, the logs to collect, retention, and poll interval. That's
+the only setup step — everything else is configured through the app.
 
 ## Docs
 

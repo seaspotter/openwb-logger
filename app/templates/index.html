@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="de">
 <head>
 <meta charset="utf-8">
 <title>openwb-logger</title>
@@ -89,24 +89,25 @@
 <body>
 <header>
   <h1>openwb-logger</h1>
-  <select id="source"><option value="">all sources</option></select>
+  <select id="source"><option value="">Alle Quellen</option></select>
   <select id="day"></select>
-  <select id="level"><option value="">all levels</option></select>
-  <input id="search" type="text" placeholder="search...">
-  <label class="check"><input type="checkbox" id="live" checked> live tail</label>
+  <select id="level"><option value="">Alle Level</option></select>
+  <input id="search" type="text" placeholder="Suchen...">
+  <label class="check"><input type="checkbox" id="live" checked> Live</label>
   <div id="right-controls">
-    from <input id="from" type="number" value="0" min="0">
-    to <input id="to" type="number" placeholder="end">
-    <button id="export">Export</button>
-    <button id="theme-toggle" class="icon" title="Toggle theme">&#9680;</button>
-    <button id="settings-open" class="icon" title="Settings">&#9881;</button>
+    von <input id="from" type="number" value="0" min="0">
+    bis <input id="to" type="number" placeholder="Ende">
+    <button id="export">Exportieren</button>
+    <button id="fetch-now">Jetzt abrufen</button>
+    <button id="theme-toggle" class="icon" title="Design wechseln">&#9680;</button>
+    <button id="settings-open" class="icon" title="Einstellungen">&#9881;</button>
   </div>
 </header>
 <main>
   <div id="pager">
-    <button id="prev">&larr; older</button>
+    <button id="prev">&larr; älter</button>
     <span id="range">-</span>
-    <button id="next">newer &rarr;</button>
+    <button id="next">neuer &rarr;</button>
   </div>
   <div id="log"></div>
 </main>
@@ -114,31 +115,31 @@
 
 <div id="settings-backdrop">
   <div id="settings-panel">
-    <h2>Settings</h2>
+    <h2>Einstellungen</h2>
     <div class="field">
-      <label for="s-base-url">openWB base URL</label>
+      <label for="s-base-url">openWB-Adresse (Basis-URL)</label>
       <input id="s-base-url" type="text" placeholder="http://10.1.5.32">
     </div>
     <div class="field">
-      <label for="s-ramdisk">Ramdisk path</label>
+      <label for="s-ramdisk">Ramdisk-Pfad</label>
       <input id="s-ramdisk" type="text" placeholder="/openWB/ramdisk">
     </div>
     <div class="field">
-      <label>Logs to collect</label>
+      <label>Zu erfassende Logs</label>
       <div class="sources" id="s-sources"></div>
     </div>
     <div class="field">
-      <label for="s-interval">Fetch interval (seconds)</label>
+      <label for="s-interval">Abrufintervall (Sekunden)</label>
       <input id="s-interval" type="number" min="60" step="60">
     </div>
     <div class="field">
-      <label for="s-retention">Retention (days)</label>
+      <label for="s-retention">Aufbewahrung (Tage)</label>
       <input id="s-retention" type="number" min="1">
     </div>
     <div id="settings-msg"></div>
     <div class="actions">
-      <button id="settings-cancel">Cancel</button>
-      <button id="settings-save">Save</button>
+      <button id="settings-cancel">Abbrechen</button>
+      <button id="settings-save">Speichern</button>
     </div>
   </div>
 </div>
@@ -156,7 +157,7 @@ const LIMIT = 1000;
 let offset = 0;
 let liveTimer = null;
 
-// ---- theme ----
+// ---- Design (hell/dunkel) ----
 const THEME_KEY = 'openwb-logger-theme';
 function applyTheme(mode) {
   if (mode === 'system') document.documentElement.removeAttribute('data-theme');
@@ -171,7 +172,7 @@ function cycleTheme() {
 applyTheme(localStorage.getItem(THEME_KEY) || 'system');
 document.getElementById('theme-toggle').onclick = cycleTheme;
 
-// ---- log viewer ----
+// ---- Log-Ansicht ----
 function escapeHtml(s) {
   return s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 }
@@ -197,7 +198,7 @@ async function loadSources() {
   const res = await fetch('/api/sources');
   const data = await res.json();
   const previous = sourceEl.value;
-  sourceEl.innerHTML = '<option value="">all sources</option>';
+  sourceEl.innerHTML = '<option value="">Alle Quellen</option>';
   const byName = Object.fromEntries(data.catalog.map(c => [c.name, c]));
   for (const name of data.enabled) {
     const meta = byName[name];
@@ -212,7 +213,7 @@ async function loadDates() {
   const data = await res.json();
   const previous = dayEl.value;
   dayEl.innerHTML = '';
-  dayEl.add(new Option('today (live)', '__today__'));
+  dayEl.add(new Option('Heute (live)', '__today__'));
   for (const d of data.dates) dayEl.add(new Option(d, d));
   dayEl.value = [...dayEl.options].some(o => o.value === previous) ? previous : '__today__';
 }
@@ -222,7 +223,7 @@ async function loadLevels() {
   const res = await fetch('/api/levels' + p);
   const data = await res.json();
   const previous = levelEl.value;
-  levelEl.innerHTML = '<option value="">all levels</option>';
+  levelEl.innerHTML = '<option value="">Alle Level</option>';
   for (const l of data.levels) levelEl.add(new Option(l, l));
   if ([...levelEl.options].some(o => o.value === previous)) levelEl.value = previous;
 }
@@ -232,7 +233,7 @@ function render(lines, total, off) {
   logEl.innerHTML = lines.map(l =>
     `<div class="line ${l.level || ''}">${highlight(l.raw, term)}</div>`
   ).join('');
-  rangeEl.textContent = total === 0 ? 'no lines' : `${off + 1}-${off + lines.length} of ${total}`;
+  rangeEl.textContent = total === 0 ? 'keine Zeilen' : `${off + 1}-${off + lines.length} von ${total}`;
 }
 
 async function load() {
@@ -253,15 +254,15 @@ async function loadStatus() {
   let extra = '';
   const gapEntries = Object.entries(s.sources).filter(([, v]) => v.total_gaps_detected);
   if (gapEntries.length) {
-    extra = '<span>gaps: ' + gapEntries.map(([n, v]) => `${n} ${v.total_gaps_detected} (recovered ${v.total_gaps_recovered})`).join(', ') + '</span>';
+    extra = '<span>Lücken: ' + gapEntries.map(([n, v]) => `${n} ${v.total_gaps_detected} (${v.total_gaps_recovered} wiederhergestellt)`).join(', ') + '</span>';
   }
   statusEl.innerHTML =
-    `<span>source: ${s.source_url}</span>` +
-    `<span>poll: ${s.fetch_interval_seconds}s</span>` +
-    `<span>retention: ${s.retention_days}d</span>` +
-    `<span>rows: ${s.total_rows}</span>` +
-    `<span>last fetch: ${s.last_fetch_at || '-'}</span>` +
-    (s.last_error ? `<span style="color:var(--error)">error: ${s.last_error}</span>` : '') +
+    `<span>Quelle: ${s.source_url}</span>` +
+    `<span>Abruf: alle ${s.fetch_interval_seconds}s</span>` +
+    `<span>Aufbewahrung: ${s.retention_days}d</span>` +
+    `<span>Zeilen: ${s.total_rows}</span>` +
+    `<span>Letzter Abruf: ${s.last_fetch_at || '-'}</span>` +
+    (s.last_error ? `<span style="color:var(--error)">Fehler: ${s.last_error}</span>` : '') +
     extra;
 }
 
@@ -291,7 +292,22 @@ document.getElementById('export').onclick = () => {
   window.open('/api/logs/export?' + p.toString(), '_blank');
 };
 
-// ---- settings panel ----
+const fetchNowBtn = document.getElementById('fetch-now');
+fetchNowBtn.onclick = async () => {
+  fetchNowBtn.disabled = true;
+  const originalText = fetchNowBtn.textContent;
+  fetchNowBtn.textContent = 'Wird abgerufen...';
+  try {
+    await fetch('/api/fetch-now', { method: 'POST' });
+    await load();
+    await loadStatus();
+  } finally {
+    fetchNowBtn.disabled = false;
+    fetchNowBtn.textContent = originalText;
+  }
+};
+
+// ---- Einstellungen ----
 const backdrop = document.getElementById('settings-backdrop');
 const msgEl = document.getElementById('settings-msg');
 
@@ -339,11 +355,11 @@ document.getElementById('settings-save').onclick = async () => {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    msgEl.textContent = err.detail || 'Failed to save settings';
+    msgEl.textContent = err.detail || 'Einstellungen konnten nicht gespeichert werden';
     msgEl.className = 'error';
     return;
   }
-  msgEl.textContent = 'Saved. Takes effect on the next poll.';
+  msgEl.textContent = 'Gespeichert. Wird beim nächsten Abruf wirksam.';
   msgEl.className = 'ok';
   await loadSources();
   await loadDates();

@@ -8,23 +8,27 @@ A small Docker tool that polls openWB's ramdisk logs (`main.log` by
 default, optionally others — HTTP, each rotated per openWB's own config)
 on an interval, merges them gap-free, parses each line, and stores it in
 TimescaleDB so the ~1 hour of detail openWB keeps becomes a full retained
-history. Includes a small server-rendered web UI (light/dark) to browse,
-live-tail, search, and export it, plus a settings panel to change where
-openWB is, which logs to collect, retention, and poll interval at runtime.
-Full picture in `README.md`; details in `DEVELOPMENT.md` and
-`DEPLOYMENT.md`.
+history. Includes a small server-rendered web UI (German, light/dark) to
+browse, live-tail, search, export it, and trigger an immediate fetch on
+demand, plus a settings panel to change where openWB is, which logs to
+collect, retention, and poll interval at runtime — no environment
+variables, no restart. Full picture in `README.md`; details in
+`DEVELOPMENT.md` and `DEPLOYMENT.md`.
 
 ## Architecture
 
-- `app/config.py` — **deployment-level** config, read once from env vars
-  at import time (DB URL, port, HTTP timeout, tail window). Fixed for the
-  life of the process.
-- `app/runtime_settings.py` — **user-editable** settings (openWB location,
-  enabled log sources, retention, poll interval), stored as one JSONB row
-  in `app_settings` and re-read every poll cycle, so changes made via the
-  UI take effect without a restart. `app/config.py` values are only used
-  to seed this on first boot. `validate()` here is pure — no DB/HTTP — and
-  is what the PUT `/api/settings` endpoint and its tests both use.
+- `app/config.py` — **infra-level** config only, read once from env vars
+  at import time: `DATABASE_URL` and `PORT`. Nothing about the tool's own
+  behavior lives here on purpose (see the module docstring) — that split
+  is what makes it possible to eventually bundle the app and its database
+  into a single image with essentially nothing left to configure via env.
+- `app/runtime_settings.py` — **all** user-editable settings (openWB
+  location, enabled log sources, retention, poll interval), stored as one
+  JSONB row in `app_settings` and re-read every poll cycle, so changes
+  made via the UI take effect without a restart. Hardcoded `DEFAULT_*`
+  constants here (not env vars) seed the row on first boot. `validate()`
+  is pure — no DB/HTTP — and is what the PUT `/api/settings` endpoint and
+  its tests both use.
 - `app/log_catalog.py` — static catalog of openWB's known ramdisk logs
   (filename stem, `DETAILED`/`SHORT` format, rotation depth). Fixed by
   openWB itself, not user-editable — see `DEVELOPMENT.md` for how to add a
@@ -44,12 +48,16 @@ Full picture in `README.md`; details in `DEVELOPMENT.md` and
   Reads runtime settings fresh every cycle and returns them so the poll
   loop in `app/main.py` can sleep for the *current* interval. Runs as a
   background `asyncio` task started in `main.py`'s lifespan.
+  `Fetcher._lock` serializes `fetch_once()` calls so the scheduled poll and
+  a manual "Jetzt abrufen" (`POST /api/fetch-now`) trigger can't race on
+  the same source's tail state.
 - `app/web.py` — FastAPI routes; all reads/writes are plain parameterized
   SQL via asyncpg, no ORM.
-- `app/templates/index.html` — the entire frontend: vanilla JS, no build
-  step, polls the JSON API. Theme is CSS custom properties (light default,
-  dark via `prefers-color-scheme` and/or a `data-theme` override persisted
-  in `localStorage`) — see the design-token block at the top of the file.
+- `app/templates/index.html` — the entire frontend, **in German**: vanilla
+  JS, no build step, polls the JSON API. Theme is CSS custom properties
+  (light default, dark via `prefers-color-scheme` and/or a `data-theme`
+  override persisted in `localStorage`) — see the design-token block at
+  the top of the file. Keep new UI copy in German too.
 
 Storage is TimescaleDB only — there is deliberately no flat-file log
 output. Retention is a database policy (`add_retention_policy`), not
@@ -76,6 +84,10 @@ docker compose up -d --build
   free of any I/O (no httpx, no asyncpg) — that's what makes them cheap to
   unit test. New parsing/merging/validation logic belongs there;
   orchestration (HTTP calls, DB writes) belongs in `fetcher.py` / `web.py`.
+- `runtime_settings.ValidationError` messages are user-facing (shown
+  directly in the settings panel) and are in German — keep them that way.
+- No environment variables for the tool's own behavior — new user-facing
+  settings go in `runtime_settings.py`, not `app/config.py`.
 - Timestamps are naive `datetime` throughout (openWB's own wall-clock
   time, no timezone conversion) and the DB column is `TIMESTAMP`, not
   `TIMESTAMPTZ`. Don't introduce timezone-aware datetimes without also

@@ -10,23 +10,43 @@ No formal releases yet — entries are grouped by what shipped, not by tag.
   `mqtt`, `smarthome`, `soc`, `internal_chargepoint`, `garbage_collector`,
   `tracemalloc`), not just `main.log`, can be enabled — each parsed with
   the correct format (`DETAILED` vs `SHORT`) per `app/log_catalog.py`.
-- Runtime-editable settings (openWB location, enabled log sources,
+- All of the tool's own settings (openWB location, enabled log sources,
   retention, poll interval) stored in the database and changeable from a
-  settings panel in the UI — no restart required. Env vars now only seed
-  the initial defaults.
+  settings panel in the UI — no restart required, no environment
+  variables at all for these (see "Changed" below).
+- Manual "Jetzt abrufen" (fetch now) button in the UI, alongside the
+  existing last-fetch timestamp in the status bar, to trigger an
+  immediate poll without waiting for the scheduled interval.
 - Light/dark/system theme toggle in the UI.
 - Source filter alongside the existing day/level/search filters.
+- UI fully translated to German.
 - `DEVELOPMENT.md`, `DEPLOYMENT.md`, `ROADMAP.md`, `CHANGELOG.md` split out
   of `README.md`.
+- Roadmap items: an all-in-one image bundling the app with its database,
+  and an MCP server to query collected logs from an AI assistant.
 
 ### Changed
 - `log_lines` gained a `source` column (default `'main'` for existing
   rows); the retention policy is now re-applied every poll cycle so a
-  changed `RETENTION_DAYS`/settings-panel value takes effect without a
-  restart.
-- `OPENWB_LOG_PATH` and `OPENWB_BACKUP_COUNT` env vars replaced by
-  `OPENWB_RAMDISK_PATH` (rotation depth is now defined per-source in the
-  catalog, matching openWB's own logger config, not user-configurable).
+  changed retention setting takes effect without a restart.
+- Removed `OPENWB_BASE_URL`, `OPENWB_LOG_PATH`/`OPENWB_RAMDISK_PATH`,
+  `OPENWB_BACKUP_COUNT`, `FETCH_INTERVAL_SECONDS`, `RETENTION_DAYS`,
+  `HTTP_TIMEOUT_SECONDS`, and `TAIL_WINDOW` as environment variables.
+  These are all either configured from the settings panel now (with
+  hardcoded fallback defaults on first boot) or, for the last two, plain
+  internal constants — not something a user needs to tune. `.env` is now
+  just `POSTGRES_PASSWORD` and `PORT`. This was done specifically to
+  support bundling the app and database into a single image later, with
+  nothing left to configure via env before first start.
+- `Fetcher.fetch_once()` is now guarded by a lock so a manual fetch can't
+  race the scheduled poll (or another manual click) on the same source's
+  tail state.
+
+### Fixed
+- `PORT` was read into `Settings.port` but never actually passed to
+  uvicorn (the Dockerfile hardcoded `--port 8080`) -- setting a custom
+  `PORT` silently did nothing. The Dockerfile's `CMD` now reads `$PORT` at
+  container start, and the unused `Settings.port` field was removed.
 
 ## [0.1.0] - 2026-08-20
 

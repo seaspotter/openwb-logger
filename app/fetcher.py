@@ -8,13 +8,13 @@ the web UI take effect on the next poll without a restart.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 
 import httpx
 
-from .config import settings as env_settings
 from .db import apply_retention_policy, get_state, set_state
 from .log_catalog import CATALOG
 from .log_merge import split_new_lines, stitch_gap
@@ -22,6 +22,12 @@ from .log_parse import parse_line
 from .runtime_settings import RuntimeSettings, defaults, get_settings
 
 logger = logging.getLogger("openwb_logger.fetcher")
+
+HTTP_TIMEOUT_SECONDS = 15
+
+# Trailing raw lines kept (in the DB) per source to detect overlap/rotation
+# between polls. Internal tuning, not user-facing settings.
+TAIL_WINDOW = 50
 
 
 @dataclass
@@ -43,10 +49,14 @@ class FetcherStatus:
 class Fetcher:
     def __init__(self) -> None:
         self.status = FetcherStatus()
+        # Guards against a manual "fetch now" overlapping the scheduled poll
+        # (or two manual clicks): both would otherwise read the same
+        # per-source tail state concurrently and could double-insert lines.
+        self._lock = asyncio.Lock()
 
     async def _get(self, client: httpx.AsyncClient, url: str) -> str | None:
         try:
-            resp = await client.get(url, timeout=env_settings.http_timeout_seconds)
+            resp = await client.get(url, timeout=HTTP_TIMEOUT_SECONDS)
             resp.raise_for_status()
             return resp.text
         except httpx.HTTPError as exc:
@@ -57,24 +67,25 @@ class Fetcher:
         """Runs one poll cycle across all enabled sources. Returns the
         runtime settings used, so the caller (the poll loop) can sleep for
         the current fetch_interval_seconds without a second DB round trip."""
-        self.status.last_fetch_at = datetime.now().isoformat(timespec="seconds")
-        try:
-            rt = await get_settings(pool)
-            await apply_retention_policy(pool, rt["retention_days"])
+        async with self._lock:
+            self.status.last_fetch_at = datetime.now().isoformat(timespec="seconds")
+            try:
+                rt = await get_settings(pool)
+                await apply_retention_policy(pool, rt["retention_days"])
 
-            async with httpx.AsyncClient() as client:
-                for name in rt["enabled_sources"]:
-                    if name not in CATALOG:
-                        continue
-                    await self._fetch_source(pool, client, name, rt)
+                async with httpx.AsyncClient() as client:
+                    for name in rt["enabled_sources"]:
+                        if name not in CATALOG:
+                            continue
+                        await self._fetch_source(pool, client, name, rt)
 
-            self.status.last_success_at = self.status.last_fetch_at
-            self.status.last_error = None
-            return rt
-        except Exception as exc:  # keep the background loop alive no matter what
-            logger.exception("Unexpected error during fetch")
-            self.status.last_error = str(exc)
-            return defaults()
+                self.status.last_success_at = self.status.last_fetch_at
+                self.status.last_error = None
+                return rt
+            except Exception as exc:  # keep the background loop alive no matter what
+                logger.exception("Unexpected error during fetch")
+                self.status.last_error = str(exc)
+                return defaults()
 
     async def _fetch_source(self, pool, client, name: str, rt: RuntimeSettings) -> None:
         meta = CATALOG[name]
@@ -112,7 +123,7 @@ class Fetcher:
         if new_lines:
             await self._insert_lines(pool, name, meta["format"], new_lines)
             new_tail = (previous_tail + new_lines) if not gap else new_lines
-            await set_state(pool, tail_key, new_tail[-env_settings.tail_window:])
+            await set_state(pool, tail_key, new_tail[-TAIL_WINDOW:])
 
         st.last_lines_added = len(new_lines)
 
