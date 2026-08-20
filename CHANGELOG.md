@@ -21,6 +21,9 @@ No formal releases yet — entries are grouped by what shipped, not by tag.
   whenever the OS was already in light mode. Now a plain light/dark flip
   (system preference only decides the very first, pre-`localStorage` load).
 
+### Changed
+- DEBUG-level log lines are now dark green instead of grey.
+
 ### Added
 - "Zeilen pro Seite" setting in the settings panel (default raised from a
   hardcoded 1000 to 5000, adjustable 100-20000) — controls the page size
