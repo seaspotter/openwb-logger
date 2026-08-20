@@ -12,8 +12,20 @@ No formal releases yet — entries are grouped by what shipped, not by tag.
   type as `date` to asyncpg, which then rejected the raw query-string
   `str` FastAPI was handing it. Query params are now typed `date` so
   FastAPI parses them before they ever reach asyncpg.
+- "älter"/"neuer" paging did nothing while viewing "Heute (live)": `load()`
+  always re-ran the tail query and ignored `offset` in that mode. Paging
+  now drops out of live-follow (unchecking "Live") and pages from wherever
+  the tail view left off, instead of silently no-op'ing.
 
 ### Added
+- "Zeitraum" from/to datetime picker in the header, as an alternative to
+  the day dropdown, for viewing an arbitrary time window instead of a
+  whole calendar day — backed by new `from`/`to` filters on `/api/logs`
+  and `/api/logs/export` (`ts >= ` / `ts < `, independent of the existing
+  `day` equality filter).
+- Newest-first display toggle (the ⇅ button next to "Exportieren"),
+  remembered in `localStorage`. Purely a display-order flip on already-
+  fetched lines; doesn't change what's fetched or how paging works.
 - Optional in-app self-update: an "Update" button in the settings panel
   (`POST /api/update`) runs `git pull` then rebuilds and recreates the
   stack via a detached sibling container over the Docker socket. Off by

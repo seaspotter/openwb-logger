@@ -4,7 +4,7 @@ asyncpg -- no other storage."""
 from __future__ import annotations
 
 import asyncio
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query
@@ -22,7 +22,14 @@ router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 
-def _filters(day: date | None, search: str | None, level: str | None, source: str | None):
+def _filters(
+    day: date | None,
+    search: str | None,
+    level: str | None,
+    source: str | None,
+    from_: datetime | None = None,
+    to: datetime | None = None,
+):
     clauses = []
     params: list = []
 
@@ -32,6 +39,10 @@ def _filters(day: date | None, search: str | None, level: str | None, source: st
 
     if day:
         add("ts::date = ${n}::date", day)
+    if from_:
+        add("ts >= ${n}", from_)
+    if to:
+        add("ts < ${n}", to)
     if search:
         add("raw ILIKE ${n}", f"%{search}%")
     if level:
@@ -89,12 +100,14 @@ async def api_logs(
     search: str | None = None,
     level: str | None = None,
     source: str | None = None,
+    from_: datetime | None = Query(default=None, alias="from"),
+    to: datetime | None = None,
     offset: int = 0,
     limit: int = Query(default=500, le=5000),
     tail: bool = False,
 ):
     pool = get_pool()
-    where, params = _filters(day, search, level, source)
+    where, params = _filters(day, search, level, source, from_, to)
 
     total = await pool.fetchval(f"SELECT count(*) FROM log_lines {where}", *params)
 
@@ -130,11 +143,13 @@ async def api_export(
     search: str | None = None,
     level: str | None = None,
     source: str | None = None,
+    from_: datetime | None = Query(default=None, alias="from"),
+    to: datetime | None = None,
     start: int = 0,
     end: int | None = None,
 ):
     pool = get_pool()
-    where, params = _filters(day, search, level, source)
+    where, params = _filters(day, search, level, source, from_, to)
     rows = await pool.fetch(f"SELECT raw FROM log_lines {where} ORDER BY ts, id", *params)
     snippet = rows[start:end] if end is not None else rows[start:]
     body = "\n".join(r["raw"] for r in snippet) + ("\n" if snippet else "")

@@ -43,6 +43,8 @@
   }
   input[type=text] { min-width: 200px; }
   input[type=number] { width: 80px; }
+  input[type=datetime-local] { width: 180px; }
+  .range-group { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
   button { cursor: pointer; }
   button:hover { border-color: var(--accent); }
   button:disabled { opacity: 0.5; cursor: default; }
@@ -96,13 +98,19 @@
   <h1>openwb-logger</h1>
   <select id="source"><option value="">Alle Quellen</option></select>
   <select id="day"></select>
+  <span class="range-group" title="Zeitraum (überschreibt die Tagesauswahl)">
+    Zeitraum <input id="range-from" type="datetime-local">
+    bis <input id="range-to" type="datetime-local">
+    <button id="range-clear" class="icon" title="Zeitraum zurücksetzen" disabled>&times;</button>
+  </span>
   <select id="level"><option value="">Alle Level</option></select>
   <input id="search" type="text" placeholder="Suchen...">
   <label class="check"><input type="checkbox" id="live" checked> Live</label>
   <div id="right-controls">
-    von <input id="from" type="number" value="0" min="0">
+    Zeile <input id="from" type="number" value="0" min="0">
     bis <input id="to" type="number" placeholder="Ende">
     <button id="export">Exportieren</button>
+    <button id="sort-toggle" class="icon" title="Sortierung umkehren">&#8645;</button>
     <button id="fetch-now">Jetzt abrufen</button>
     <button id="theme-toggle" class="icon" title="Design wechseln">&#9680;</button>
     <button id="settings-open" class="icon" title="Einstellungen">&#9881;</button>
@@ -166,9 +174,47 @@ const liveEl = document.getElementById('live');
 const logEl = document.getElementById('log');
 const rangeEl = document.getElementById('range');
 const statusEl = document.getElementById('status');
+const rangeFromEl = document.getElementById('range-from');
+const rangeToEl = document.getElementById('range-to');
+const rangeClearBtn = document.getElementById('range-clear');
 const LIMIT = 1000;
 let offset = 0;
 let liveTimer = null;
+
+// ---- Zeitraum (überschreibt die Tagesauswahl, solange gesetzt) ----
+function hasCustomRange() {
+  return !!(rangeFromEl.value || rangeToEl.value);
+}
+function updateRangeUI() {
+  const active = hasCustomRange();
+  dayEl.disabled = active;
+  liveEl.disabled = active;
+  rangeClearBtn.disabled = !active;
+}
+rangeFromEl.onchange = rangeToEl.onchange = () => { offset = 0; updateRangeUI(); load(); };
+rangeClearBtn.onclick = () => {
+  rangeFromEl.value = '';
+  rangeToEl.value = '';
+  offset = 0;
+  updateRangeUI();
+  load();
+};
+
+// ---- Sortierung (älteste/neueste zuerst) ----
+const SORT_KEY = 'openwb-logger-sort-desc';
+let sortDesc = localStorage.getItem(SORT_KEY) === 'true';
+const sortToggleBtn = document.getElementById('sort-toggle');
+function applySortTitle() {
+  sortToggleBtn.title = sortDesc ? 'Neueste zuerst (Klick: älteste zuerst)' : 'Älteste zuerst (Klick: neueste zuerst)';
+}
+applySortTitle();
+sortToggleBtn.onclick = () => {
+  sortDesc = !sortDesc;
+  localStorage.setItem(SORT_KEY, sortDesc);
+  applySortTitle();
+  render(lastLines, lastTotal, lastOffset);
+};
+let lastLines = [], lastTotal = 0, lastOffset = 0;
 
 // ---- Design (hell/dunkel) ----
 const THEME_KEY = 'openwb-logger-theme';
@@ -200,7 +246,12 @@ function highlight(raw, term) {
 function params(extra) {
   const p = new URLSearchParams();
   if (sourceEl.value) p.set('source', sourceEl.value);
-  if (dayEl.value && dayEl.value !== '__today__') p.set('day', dayEl.value);
+  if (hasCustomRange()) {
+    if (rangeFromEl.value) p.set('from', rangeFromEl.value);
+    if (rangeToEl.value) p.set('to', rangeToEl.value);
+  } else if (dayEl.value && dayEl.value !== '__today__') {
+    p.set('day', dayEl.value);
+  }
   if (levelEl.value) p.set('level', levelEl.value);
   if (searchEl.value) p.set('search', searchEl.value);
   for (const k in extra) p.set(k, extra[k]);
@@ -242,23 +293,31 @@ async function loadLevels() {
 }
 
 function render(lines, total, off) {
+  lastLines = lines; lastTotal = total; lastOffset = off;
   const term = searchEl.value;
-  logEl.innerHTML = lines.map(l =>
+  const ordered = sortDesc ? [...lines].reverse() : lines;
+  logEl.innerHTML = ordered.map(l =>
     `<div class="line ${l.level || ''}">${highlight(l.raw, term)}</div>`
   ).join('');
   rangeEl.textContent = total === 0 ? 'keine Zeilen' : `${off + 1}-${off + lines.length} von ${total}`;
 }
 
 async function load() {
-  const isToday = dayEl.value === '__today__';
+  const customRange = hasCustomRange();
+  const isToday = !customRange && dayEl.value === '__today__';
   const today = new Date().toISOString().slice(0, 10);
-  const extra = isToday ? { day: today, tail: 'true', limit: LIMIT } : { offset, limit: LIMIT };
+  const liveTail = isToday && liveEl.checked;
+  const extra = liveTail
+    ? { day: today, tail: 'true', limit: LIMIT }
+    : customRange
+      ? { offset, limit: LIMIT }
+      : { day: isToday ? today : dayEl.value, offset, limit: LIMIT };
   const p = params(extra);
   const res = await fetch('/api/logs?' + p.toString());
   const data = await res.json();
   offset = data.offset;
   render(data.lines, data.total, data.offset);
-  if (isToday && liveEl.checked) logEl.scrollTop = logEl.scrollHeight;
+  if (liveTail) logEl.scrollTop = sortDesc ? 0 : logEl.scrollHeight;
 }
 
 async function loadStatus() {
@@ -282,12 +341,22 @@ async function loadStatus() {
 function restartLiveTimer() {
   if (liveTimer) clearInterval(liveTimer);
   liveTimer = setInterval(() => {
-    if (dayEl.value === '__today__' && liveEl.checked) load();
+    if (!hasCustomRange() && dayEl.value === '__today__' && liveEl.checked) load();
   }, 5000);
 }
 
-document.getElementById('prev').onclick = () => { offset = Math.max(0, offset - LIMIT); load(); };
-document.getElementById('next').onclick = () => { offset = offset + LIMIT; load(); };
+liveEl.onchange = () => { if (!hasCustomRange() && dayEl.value === '__today__') load(); };
+
+document.getElementById('prev').onclick = () => {
+  liveEl.checked = false;
+  offset = Math.max(0, offset - LIMIT);
+  load();
+};
+document.getElementById('next').onclick = () => {
+  liveEl.checked = false;
+  offset = offset + LIMIT;
+  load();
+};
 sourceEl.onchange = async () => { offset = 0; await loadDates(); await loadLevels(); load(); };
 dayEl.onchange = () => { offset = 0; load(); };
 levelEl.onchange = () => { offset = 0; load(); };
@@ -295,13 +364,14 @@ let searchDebounce;
 searchEl.oninput = () => { clearTimeout(searchDebounce); searchDebounce = setTimeout(() => { offset = 0; load(); }, 300); };
 
 document.getElementById('export').onclick = () => {
-  const from = document.getElementById('from').value || 0;
-  const to = document.getElementById('to').value;
-  const isToday = dayEl.value === '__today__';
-  const day = isToday ? new Date().toISOString().slice(0, 10) : dayEl.value;
-  const p = params({ start: from });
-  p.set('day', day);
-  if (to) p.set('end', to);
+  const lineFrom = document.getElementById('from').value || 0;
+  const lineTo = document.getElementById('to').value;
+  const p = params({ start: lineFrom });
+  if (!hasCustomRange()) {
+    const isToday = dayEl.value === '__today__';
+    p.set('day', isToday ? new Date().toISOString().slice(0, 10) : dayEl.value);
+  }
+  if (lineTo) p.set('end', lineTo);
   window.open('/api/logs/export?' + p.toString(), '_blank');
 };
 
