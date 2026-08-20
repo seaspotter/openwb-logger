@@ -22,6 +22,9 @@ No formal releases yet — entries are grouped by what shipped, not by tag.
   (system preference only decides the very first, pre-`localStorage` load).
 
 ### Changed
+- Log view is taller: `calc(100vh - 170px)` instead of a fixed `70vh`, so it
+  fills the available window space instead of leaving a growing gap on
+  tall windows.
 - DEBUG-level log lines are now dark green instead of grey.
 - "Live" now turns itself off (not just visually inert) when you scroll
   away from the live edge, change the log level, search, or pick a
