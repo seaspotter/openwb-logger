@@ -4,7 +4,10 @@ WORKDIR /app
 
 # git: needed by app/updater.py's `git pull` against the repo checkout that
 # docker-compose.yml bind-mounts onto this same WORKDIR for self-update.
-RUN apt-get update && apt-get install -y --no-install-recommends git \
+# tzdata: without it, setting TZ (see docker-compose.yml) has nothing to
+# resolve against, and datetime.now() (fetcher.py's last_fetch_at etc.)
+# stays on the container's default UTC regardless of TZ.
+RUN apt-get update && apt-get install -y --no-install-recommends git tzdata \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
