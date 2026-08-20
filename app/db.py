@@ -52,6 +52,10 @@ _SCHEMA_STATEMENTS = [
     # /api/dates, /api/levels when a source is selected) better than the
     # single-column source index above.
     "CREATE INDEX IF NOT EXISTS idx_log_lines_source_ts ON log_lines (source, ts DESC);",
+    # Backs the (ts, id) keyset/cursor pagination in web.py's /api/logs --
+    # the table's PK is (id, ts), which doesn't help ORDER BY ts, id or the
+    # (ts, id) > (...) row comparisons used there.
+    "CREATE INDEX IF NOT EXISTS idx_log_lines_ts_id ON log_lines (ts, id);",
     # GIN trigram index so `raw ILIKE '%term%'` (search) can use an index
     # scan instead of reading every row -- see CREATE EXTENSION pg_trgm above.
     "CREATE INDEX IF NOT EXISTS idx_log_lines_raw_trgm ON log_lines USING GIN (raw gin_trgm_ops);",

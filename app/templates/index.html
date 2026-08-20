@@ -192,7 +192,13 @@ let LIMIT = 1000; // overwritten by the page_size setting once loaded, see init(
 // so an accidentally huge window can't hang the browser -- see the
 // truncation notice in load() when total exceeds this.
 const RANGE_LIMIT = 20000;
-let offset = 0;
+// Keyset (cursor) pagination by (ts, id) instead of a numeric offset -- see
+// CHANGELOG. `pendingCursor` describes the next /api/logs request: null
+// means "start from the beginning"; {after} / {before} continue from the
+// boundary of whatever's currently on screen (updated by render() on every
+// load, from firstShown/lastShown).
+let pendingCursor = null;
+let firstShown = null, lastShown = null;
 let liveTimer = null;
 
 // ---- Zeitraum (überschreibt die Tagesauswahl, solange gesetzt) ----
@@ -208,11 +214,11 @@ function updateRangeUI() {
   document.getElementById('prev').disabled = active;
   document.getElementById('next').disabled = active;
 }
-rangeFromEl.onchange = rangeToEl.onchange = () => { offset = 0; updateRangeUI(); load(); };
+rangeFromEl.onchange = rangeToEl.onchange = () => { pendingCursor = null; updateRangeUI(); load(); };
 rangeClearBtn.onclick = () => {
   rangeFromEl.value = '';
   rangeToEl.value = '';
-  offset = 0;
+  pendingCursor = null;
   updateRangeUI();
   load();
 };
@@ -229,9 +235,9 @@ sortToggleBtn.onclick = () => {
   sortDesc = !sortDesc;
   localStorage.setItem(SORT_KEY, sortDesc);
   applySortTitle();
-  render(lastLines, lastTotal, lastOffset);
+  render(lastLines);
 };
-let lastLines = [], lastTotal = 0, lastOffset = 0;
+let lastLines = [];
 
 // ---- Design (hell/dunkel) ----
 // A plain light/dark toggle, not a system/light/dark cycle: the previous
@@ -313,14 +319,21 @@ async function loadLevels() {
   if ([...levelEl.options].some(o => o.value === previous)) levelEl.value = previous;
 }
 
-function render(lines, total, off) {
-  lastLines = lines; lastTotal = total; lastOffset = off;
+function render(lines) {
+  lastLines = lines;
+  if (lines.length) {
+    firstShown = { ts: lines[0].ts, id: lines[0].id };
+    lastShown = { ts: lines[lines.length - 1].ts, id: lines[lines.length - 1].id };
+  } else {
+    firstShown = null;
+    lastShown = null;
+  }
   const term = searchEl.value;
   const ordered = sortDesc ? [...lines].reverse() : lines;
   logEl.innerHTML = ordered.map(l =>
     `<div class="line ${l.level || ''}">${highlight(l.raw, term)}</div>`
   ).join('');
-  rangeEl.textContent = total === 0 ? 'keine Zeilen' : `${off + 1}-${off + lines.length} von ${total}`;
+  rangeEl.textContent = lines.length === 0 ? 'keine Zeilen' : `${lines.length} Zeilen`;
 }
 
 async function load() {
@@ -328,19 +341,46 @@ async function load() {
   const isToday = !customRange && dayEl.value === '__today__';
   const today = new Date().toISOString().slice(0, 10);
   const liveTail = isToday && liveEl.checked;
-  const extra = liveTail
-    ? { day: today, tail: 'true', limit: LIMIT }
-    : customRange
-      ? { offset: 0, limit: RANGE_LIMIT }
-      : { day: isToday ? today : dayEl.value, offset, limit: LIMIT };
+
+  const extra = { limit: customRange ? RANGE_LIMIT : LIMIT };
+  if (liveTail) {
+    extra.day = today;
+    extra.tail = 'true';
+  } else if (customRange) {
+    // Always a fresh, unbounded-by-cursor fetch -- Zeitraum has no paging
+    // of its own (see RANGE_LIMIT above), regardless of whatever cursor a
+    // previous day/range view happened to leave in `pendingCursor`.
+  } else {
+    extra.day = isToday ? today : dayEl.value;
+    if (pendingCursor?.after) {
+      extra.after_ts = pendingCursor.after.ts;
+      extra.after_id = pendingCursor.after.id;
+    } else if (pendingCursor?.before) {
+      extra.before_ts = pendingCursor.before.ts;
+      extra.before_id = pendingCursor.before.id;
+    }
+  }
   const p = params(extra);
   const res = await fetch('/api/logs?' + p.toString());
   const data = await res.json();
-  offset = data.offset;
-  render(data.lines, data.total, data.offset);
-  if (customRange && data.total > data.lines.length) {
-    rangeEl.textContent += ` — auf die ersten ${RANGE_LIMIT} begrenzt, Zeitraum eingrenzen für den Rest`;
+  render(data.lines);
+
+  const prevBtn = document.getElementById('prev');
+  const nextBtn = document.getElementById('next');
+  if (customRange) {
+    prevBtn.disabled = true;
+    nextBtn.disabled = true;
+    if (data.has_more_after) {
+      rangeEl.textContent += ` — auf die ersten ${RANGE_LIMIT} begrenzt, Zeitraum eingrenzen für den Rest`;
+    }
+  } else if (liveTail) {
+    prevBtn.disabled = !data.has_more_before;
+    nextBtn.disabled = true;
+  } else {
+    prevBtn.disabled = !data.has_more_before;
+    nextBtn.disabled = !data.has_more_after;
   }
+
   if (liveTail) logEl.scrollTop = sortDesc ? 0 : logEl.scrollHeight;
 }
 
@@ -372,23 +412,26 @@ function restartLiveTimer() {
 liveEl.onchange = () => { if (!hasCustomRange() && dayEl.value === '__today__') load(); };
 
 document.getElementById('prev').onclick = () => {
+  if (!firstShown) return;
   liveEl.checked = false;
-  offset = Math.max(0, offset - LIMIT);
+  pendingCursor = { before: firstShown };
   load();
 };
 document.getElementById('next').onclick = () => {
+  if (!lastShown) return;
   liveEl.checked = false;
-  offset = offset + LIMIT;
+  pendingCursor = { after: lastShown };
   load();
 };
-sourceEl.onchange = async () => { offset = 0; await loadDates(); await loadLevels(); load(); };
-dayEl.onchange = () => { offset = 0; load(); };
-levelEl.onchange = () => { liveEl.checked = false; offset = 0; load(); };
+sourceEl.onchange = async () => { pendingCursor = null; await loadDates(); await loadLevels(); load(); };
+dayEl.onchange = () => { pendingCursor = null; load(); };
+levelEl.onchange = () => { liveEl.checked = false; pendingCursor = null; load(); };
 let searchDebounce;
 searchEl.oninput = () => {
   liveEl.checked = false;
+  pendingCursor = null;
   clearTimeout(searchDebounce);
-  searchDebounce = setTimeout(() => { offset = 0; load(); }, 300);
+  searchDebounce = setTimeout(load, 300);
 };
 
 // Scrolling away from the live edge (bottom in the default oldest-first
@@ -493,7 +536,7 @@ document.getElementById('settings-save').onclick = async () => {
   await loadSources();
   await loadDates();
   await loadLevels();
-  offset = 0;
+  pendingCursor = null;
   await load();
   await loadStatus();
   setTimeout(closeSettings, 900);

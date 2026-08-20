@@ -3,7 +3,6 @@ export, status, and runtime settings. All backed by TimescaleDB via
 asyncpg -- no other storage."""
 from __future__ import annotations
 
-import time
 from datetime import date, datetime
 from pathlib import Path
 
@@ -29,52 +28,35 @@ def _filters(
     source: str | None,
     from_: datetime | None = None,
     to: datetime | None = None,
+    after: tuple[datetime, int] | None = None,
+    before: tuple[datetime, int] | None = None,
 ):
     clauses = []
     params: list = []
 
-    def add(clause: str, value) -> None:
-        params.append(value)
-        clauses.append(clause.format(n=len(params)))
+    def add(clause: str, *values) -> None:
+        start = len(params) + 1
+        params.extend(values)
+        clauses.append(clause.format(*[f"${i}" for i in range(start, len(params) + 1)]))
 
     if day:
-        add("ts::date = ${n}::date", day)
+        add("ts::date = {}::date", day)
     if from_:
-        add("ts >= ${n}", from_)
+        add("ts >= {}", from_)
     if to:
-        add("ts < ${n}", to)
+        add("ts < {}", to)
+    if after:
+        add("(ts, id) > ({}, {})", *after)
+    if before:
+        add("(ts, id) < ({}, {})", *before)
     if search:
-        add("raw ILIKE ${n}", f"%{search}%")
+        add("raw ILIKE {}", f"%{search}%")
     if level:
-        add("level = ${n}", level)
+        add("level = {}", level)
     if source:
-        add("source = ${n}", source)
+        add("source = {}", source)
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     return where, params
-
-
-# Short-TTL cache for the filtered COUNT(*) in api_logs' tail branch, which
-# every open tab re-requests every 5s while watching "Heute (live)" -- a
-# full/filtered scan on that cadence, times however many tabs are open, adds
-# up on a table with tens of millions of rows. TTL is intentionally shorter
-# than any sane poll interval, so a single tab still sees a fresh count on
-# essentially every poll; it's multiple tabs hitting the *same* filter
-# combination within that window that get collapsed onto one query.
-_TAIL_COUNT_TTL_SECONDS = 4.0
-_tail_count_cache: dict[tuple, tuple[float, int]] = {}
-
-
-async def _tail_count(pool, where: str, params: list) -> int:
-    key = (where, tuple(params))
-    now = time.monotonic()
-    cached = _tail_count_cache.get(key)
-    if cached is not None and now - cached[0] < _TAIL_COUNT_TTL_SECONDS:
-        return cached[1]
-    total = await pool.fetchval(f"SELECT count(*) FROM log_lines {where}", *params)
-    if len(_tail_count_cache) > 50:  # cheap safety net against unbounded growth
-        _tail_count_cache.clear()
-    _tail_count_cache[key] = (now, total)
-    return total
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -126,33 +108,72 @@ async def api_logs(
     source: str | None = None,
     from_: datetime | None = Query(default=None, alias="from"),
     to: datetime | None = None,
-    offset: int = 0,
+    after_ts: datetime | None = None,
+    after_id: int | None = None,
+    before_ts: datetime | None = None,
+    before_id: int | None = None,
     limit: int = Query(default=500, le=20000),
     tail: bool = False,
 ):
+    """Keyset (cursor) pagination by (ts, id) instead of OFFSET/LIMIT, so
+    paging cost doesn't grow with how deep into a filtered result set you
+    are (OFFSET makes Postgres scan and discard every prior row -- see
+    ROADMAP.md). `has_more_before`/`has_more_after` replace the old
+    `total`/`offset`: fetching `limit + 1` rows reveals whether there's
+    more in the direction being paged; the *other* direction is a cheap
+    indexed EXISTS check. No COUNT anywhere in this endpoint."""
     pool = get_pool()
-    where, params = _filters(day, search, level, source, from_, to)
+    after = (after_ts, after_id) if after_ts is not None and after_id is not None else None
+    before = (before_ts, before_id) if before_ts is not None and before_id is not None else None
+
+    async def _exists_beyond(**cursor) -> bool:
+        w, p = _filters(day, search, level, source, from_, to, **cursor)
+        return await pool.fetchval(f"SELECT EXISTS(SELECT 1 FROM log_lines {w})", *p)
 
     if tail:
-        total = await _tail_count(pool, where, params)
+        where, params = _filters(day, search, level, source, from_, to)
         rows = await pool.fetch(
             f"SELECT id, ts, level, logger_name, source, raw FROM log_lines {where} "
             f"ORDER BY ts DESC, id DESC LIMIT ${len(params) + 1}",
-            *params, limit,
+            *params, limit + 1,
         )
-        rows = list(reversed(rows))
-        offset = max(total - len(rows), 0)
-    else:
-        total = await pool.fetchval(f"SELECT count(*) FROM log_lines {where}", *params)
+        has_more_before = len(rows) > limit
+        rows = list(reversed(rows[:limit]))
+        has_more_after = False
+    elif before:
+        where, params = _filters(day, search, level, source, from_, to, before=before)
         rows = await pool.fetch(
             f"SELECT id, ts, level, logger_name, source, raw FROM log_lines {where} "
-            f"ORDER BY ts, id LIMIT ${len(params) + 1} OFFSET ${len(params) + 2}",
-            *params, limit, offset,
+            f"ORDER BY ts DESC, id DESC LIMIT ${len(params) + 1}",
+            *params, limit + 1,
         )
+        has_more_before = len(rows) > limit
+        rows = list(reversed(rows[:limit]))
+        has_more_after = bool(rows) and await _exists_beyond(after=(rows[-1]["ts"], rows[-1]["id"]))
+    elif after:
+        where, params = _filters(day, search, level, source, from_, to, after=after)
+        rows = await pool.fetch(
+            f"SELECT id, ts, level, logger_name, source, raw FROM log_lines {where} "
+            f"ORDER BY ts, id LIMIT ${len(params) + 1}",
+            *params, limit + 1,
+        )
+        has_more_after = len(rows) > limit
+        rows = rows[:limit]
+        has_more_before = bool(rows) and await _exists_beyond(before=(rows[0]["ts"], rows[0]["id"]))
+    else:
+        where, params = _filters(day, search, level, source, from_, to)
+        rows = await pool.fetch(
+            f"SELECT id, ts, level, logger_name, source, raw FROM log_lines {where} "
+            f"ORDER BY ts, id LIMIT ${len(params) + 1}",
+            *params, limit + 1,
+        )
+        has_more_after = len(rows) > limit
+        rows = rows[:limit]
+        has_more_before = False
 
     return {
-        "total": total,
-        "offset": offset,
+        "has_more_before": has_more_before,
+        "has_more_after": has_more_after,
         "lines": [
             {"id": r["id"], "ts": r["ts"].isoformat(), "level": r["level"],
              "logger": r["logger_name"], "source": r["source"], "raw": r["raw"]}
