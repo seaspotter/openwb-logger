@@ -6,6 +6,12 @@ No formal releases yet — entries are grouped by what shipped, not by tag.
 ## [Unreleased]
 
 ### Added
+- Backfill on first-ever fetch: when a source has no saved tail state yet
+  (fresh deployment, or a source just enabled in the settings panel), the
+  fetcher now reads its existing rotated backups (oldest first) before the
+  current file, instead of only capturing lines going forward. Previously
+  whatever history openWB already had on disk at that point was silently
+  skipped.
 - Multi-source log collection: any of openWB's ramdisk logs (`chargelog`,
   `mqtt`, `smarthome`, `soc`, `internal_chargepoint`, `garbage_collector`,
   `tracemalloc`), not just `main.log`, can be enabled — each parsed with

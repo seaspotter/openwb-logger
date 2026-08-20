@@ -3,7 +3,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.log_merge import find_overlap_end, split_new_lines, stitch_gap
+from app.log_merge import assemble_backfill, find_overlap_end, split_new_lines, stitch_gap
 
 
 def test_split_new_lines_no_previous_tail_returns_everything():
@@ -55,3 +55,13 @@ def test_stitch_gap_returns_none_when_tail_not_in_backup():
     backup_content = "a\nb\nc"
     latest_content = "d\ne"
     assert stitch_gap(previous_tail, backup_content, latest_content) is None
+
+
+def test_assemble_backfill_concatenates_oldest_to_newest():
+    older_contents = ["a\nb", "c\nd"]
+    latest_content = "e\nf"
+    assert assemble_backfill(older_contents, latest_content) == ["a", "b", "c", "d", "e", "f"]
+
+
+def test_assemble_backfill_with_no_backups_returns_latest_only():
+    assert assemble_backfill([], "a\nb") == ["a", "b"]

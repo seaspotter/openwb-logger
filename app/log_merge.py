@@ -37,6 +37,17 @@ def split_new_lines(previous_tail: list[str], new_content: str) -> tuple[list[st
     return content_lines[end:], False
 
 
+def assemble_backfill(older_contents: list[str], latest_content: str) -> list[str]:
+    """Concatenates rotated backup contents (oldest first) with the current
+    file's content, for seeding history on a source's very first-ever fetch
+    -- so pre-existing rotated logs aren't silently skipped."""
+    lines: list[str] = []
+    for content in older_contents:
+        lines.extend(content.splitlines())
+    lines.extend(latest_content.splitlines())
+    return lines
+
+
 def stitch_gap(
     previous_tail: list[str], backup_content: str, latest_content: str
 ) -> list[str] | None:
