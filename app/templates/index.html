@@ -5,10 +5,27 @@
 <title>openwb-logger</title>
 <style>
   :root {
-    color-scheme: dark;
+    --bg: #f5f6f8; --panel: #ffffff; --border: #d8dbe2;
+    --text: #1a1d24; --muted: #6b7280; --accent: #2563eb;
+    --debug: #9aa0ab; --info: #1a1d24; --warning: #b45309; --error: #dc2626;
+    --mark-bg: #bfdbfe; --mark-text: #0b1d3a;
+    --backdrop: rgba(0, 0, 0, 0.35);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1115; --panel: #171a21; --border: #2a2e38;
+      --text: #d8dbe2; --muted: #8a8f9c; --accent: #4da3ff;
+      --debug: #6b7280; --info: #d8dbe2; --warning: #e0a95c; --error: #e5675f;
+      --mark-bg: #4da3ff; --mark-text: #06131f;
+      --backdrop: rgba(0, 0, 0, 0.55);
+    }
+  }
+  :root[data-theme="dark"] {
     --bg: #0f1115; --panel: #171a21; --border: #2a2e38;
     --text: #d8dbe2; --muted: #8a8f9c; --accent: #4da3ff;
     --debug: #6b7280; --info: #d8dbe2; --warning: #e0a95c; --error: #e5675f;
+    --mark-bg: #4da3ff; --mark-text: #06131f;
+    --backdrop: rgba(0, 0, 0, 0.55);
   }
   * { box-sizing: border-box; }
   body {
@@ -24,13 +41,14 @@
     background: var(--panel); color: var(--text); border: 1px solid var(--border);
     border-radius: 6px; padding: 6px 8px; font-size: 13px;
   }
-  input[type=text] { min-width: 220px; }
+  input[type=text] { min-width: 200px; }
   input[type=number] { width: 80px; }
   button { cursor: pointer; }
   button:hover { border-color: var(--accent); }
   button:disabled { opacity: 0.5; cursor: default; }
+  button.icon { width: 32px; padding: 6px; text-align: center; }
   label.check { display: flex; align-items: center; gap: 5px; font-size: 13px; color: var(--muted); }
-  #export-row { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+  #right-controls { display: flex; align-items: center; gap: 8px; margin-left: auto; }
   main { padding: 10px 16px; }
   #pager { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 13px; color: var(--muted); }
   #log {
@@ -43,22 +61,45 @@
   .line.INFO { color: var(--info); }
   .line.WARNING { color: var(--warning); }
   .line.ERROR { color: var(--error); }
-  .line mark { background: var(--accent); color: #06131f; border-radius: 2px; }
+  .line mark { background: var(--mark-bg); color: var(--mark-text); border-radius: 2px; }
   #status { padding: 8px 16px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--border); }
   #status span { margin-right: 16px; }
+
+  #settings-backdrop {
+    display: none; position: fixed; inset: 0; background: var(--backdrop);
+    align-items: flex-start; justify-content: center; padding-top: 8vh; z-index: 10;
+  }
+  #settings-backdrop.open { display: flex; }
+  #settings-panel {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    width: min(480px, 92vw); padding: 18px 20px; max-height: 80vh; overflow-y: auto;
+  }
+  #settings-panel h2 { margin: 0 0 14px; font-size: 15px; }
+  #settings-panel .field { margin-bottom: 14px; }
+  #settings-panel label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  #settings-panel input[type=text], #settings-panel input[type=number] { width: 100%; }
+  #settings-panel .sources { display: flex; flex-direction: column; gap: 6px; }
+  #settings-panel .sources label { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text); }
+  #settings-panel .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+  #settings-msg { font-size: 12px; margin-top: 8px; min-height: 16px; }
+  #settings-msg.error { color: var(--error); }
+  #settings-msg.ok { color: var(--accent); }
 </style>
 </head>
 <body>
 <header>
   <h1>openwb-logger</h1>
+  <select id="source"><option value="">all sources</option></select>
   <select id="day"></select>
   <select id="level"><option value="">all levels</option></select>
   <input id="search" type="text" placeholder="search...">
   <label class="check"><input type="checkbox" id="live" checked> live tail</label>
-  <div id="export-row">
+  <div id="right-controls">
     from <input id="from" type="number" value="0" min="0">
     to <input id="to" type="number" placeholder="end">
     <button id="export">Export</button>
+    <button id="theme-toggle" class="icon" title="Toggle theme">&#9680;</button>
+    <button id="settings-open" class="icon" title="Settings">&#9881;</button>
   </div>
 </header>
 <main>
@@ -71,7 +112,39 @@
 </main>
 <div id="status"></div>
 
+<div id="settings-backdrop">
+  <div id="settings-panel">
+    <h2>Settings</h2>
+    <div class="field">
+      <label for="s-base-url">openWB base URL</label>
+      <input id="s-base-url" type="text" placeholder="http://10.1.5.32">
+    </div>
+    <div class="field">
+      <label for="s-ramdisk">Ramdisk path</label>
+      <input id="s-ramdisk" type="text" placeholder="/openWB/ramdisk">
+    </div>
+    <div class="field">
+      <label>Logs to collect</label>
+      <div class="sources" id="s-sources"></div>
+    </div>
+    <div class="field">
+      <label for="s-interval">Fetch interval (seconds)</label>
+      <input id="s-interval" type="number" min="60" step="60">
+    </div>
+    <div class="field">
+      <label for="s-retention">Retention (days)</label>
+      <input id="s-retention" type="number" min="1">
+    </div>
+    <div id="settings-msg"></div>
+    <div class="actions">
+      <button id="settings-cancel">Cancel</button>
+      <button id="settings-save">Save</button>
+    </div>
+  </div>
+</div>
+
 <script>
+const sourceEl = document.getElementById('source');
 const dayEl = document.getElementById('day');
 const levelEl = document.getElementById('level');
 const searchEl = document.getElementById('search');
@@ -83,6 +156,22 @@ const LIMIT = 1000;
 let offset = 0;
 let liveTimer = null;
 
+// ---- theme ----
+const THEME_KEY = 'openwb-logger-theme';
+function applyTheme(mode) {
+  if (mode === 'system') document.documentElement.removeAttribute('data-theme');
+  else document.documentElement.setAttribute('data-theme', mode);
+}
+function cycleTheme() {
+  const current = localStorage.getItem(THEME_KEY) || 'system';
+  const next = { system: 'light', light: 'dark', dark: 'system' }[current];
+  localStorage.setItem(THEME_KEY, next);
+  applyTheme(next);
+}
+applyTheme(localStorage.getItem(THEME_KEY) || 'system');
+document.getElementById('theme-toggle').onclick = cycleTheme;
+
+// ---- log viewer ----
 function escapeHtml(s) {
   return s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 }
@@ -96,27 +185,46 @@ function highlight(raw, term) {
 
 function params(extra) {
   const p = new URLSearchParams();
-  if (dayEl.value) p.set('day', dayEl.value);
+  if (sourceEl.value) p.set('source', sourceEl.value);
+  if (dayEl.value && dayEl.value !== '__today__') p.set('day', dayEl.value);
   if (levelEl.value) p.set('level', levelEl.value);
   if (searchEl.value) p.set('search', searchEl.value);
   for (const k in extra) p.set(k, extra[k]);
   return p;
 }
 
-async function loadDates() {
-  const res = await fetch('/api/dates');
+async function loadSources() {
+  const res = await fetch('/api/sources');
   const data = await res.json();
+  const previous = sourceEl.value;
+  sourceEl.innerHTML = '<option value="">all sources</option>';
+  const byName = Object.fromEntries(data.catalog.map(c => [c.name, c]));
+  for (const name of data.enabled) {
+    const meta = byName[name];
+    sourceEl.add(new Option(meta ? meta.label : name, name));
+  }
+  if ([...sourceEl.options].some(o => o.value === previous)) sourceEl.value = previous;
+}
+
+async function loadDates() {
+  const p = sourceEl.value ? '?source=' + encodeURIComponent(sourceEl.value) : '';
+  const res = await fetch('/api/dates' + p);
+  const data = await res.json();
+  const previous = dayEl.value;
   dayEl.innerHTML = '';
-  const todayOpt = new Option('today (live)', '__today__');
-  dayEl.add(todayOpt);
+  dayEl.add(new Option('today (live)', '__today__'));
   for (const d of data.dates) dayEl.add(new Option(d, d));
-  dayEl.value = '__today__';
+  dayEl.value = [...dayEl.options].some(o => o.value === previous) ? previous : '__today__';
 }
 
 async function loadLevels() {
-  const res = await fetch('/api/levels');
+  const p = sourceEl.value ? '?source=' + encodeURIComponent(sourceEl.value) : '';
+  const res = await fetch('/api/levels' + p);
   const data = await res.json();
+  const previous = levelEl.value;
+  levelEl.innerHTML = '<option value="">all levels</option>';
   for (const l of data.levels) levelEl.add(new Option(l, l));
+  if ([...levelEl.options].some(o => o.value === previous)) levelEl.value = previous;
 }
 
 function render(lines, total, off) {
@@ -131,10 +239,7 @@ async function load() {
   const isToday = dayEl.value === '__today__';
   const today = new Date().toISOString().slice(0, 10);
   const extra = isToday ? { day: today, tail: 'true', limit: LIMIT } : { offset, limit: LIMIT };
-  const dayBackup = dayEl.value;
-  if (isToday) dayEl.value = '__today__';
   const p = params(extra);
-  if (isToday) p.set('day', today);
   const res = await fetch('/api/logs?' + p.toString());
   const data = await res.json();
   offset = data.offset;
@@ -145,14 +250,19 @@ async function load() {
 async function loadStatus() {
   const res = await fetch('/api/status');
   const s = await res.json();
+  let extra = '';
+  const gapEntries = Object.entries(s.sources).filter(([, v]) => v.total_gaps_detected);
+  if (gapEntries.length) {
+    extra = '<span>gaps: ' + gapEntries.map(([n, v]) => `${n} ${v.total_gaps_detected} (recovered ${v.total_gaps_recovered})`).join(', ') + '</span>';
+  }
   statusEl.innerHTML =
-    `<span>source: ${s.source}</span>` +
+    `<span>source: ${s.source_url}</span>` +
     `<span>poll: ${s.fetch_interval_seconds}s</span>` +
     `<span>retention: ${s.retention_days}d</span>` +
     `<span>rows: ${s.total_rows}</span>` +
     `<span>last fetch: ${s.last_fetch_at || '-'}</span>` +
     (s.last_error ? `<span style="color:var(--error)">error: ${s.last_error}</span>` : '') +
-    (s.total_gaps_detected ? `<span>gaps: ${s.total_gaps_detected} (recovered ${s.total_gaps_recovered})</span>` : '');
+    extra;
 }
 
 function restartLiveTimer() {
@@ -164,6 +274,7 @@ function restartLiveTimer() {
 
 document.getElementById('prev').onclick = () => { offset = Math.max(0, offset - LIMIT); load(); };
 document.getElementById('next').onclick = () => { offset = offset + LIMIT; load(); };
+sourceEl.onchange = async () => { offset = 0; await loadDates(); await loadLevels(); load(); };
 dayEl.onchange = () => { offset = 0; load(); };
 levelEl.onchange = () => { offset = 0; load(); };
 let searchDebounce;
@@ -180,7 +291,69 @@ document.getElementById('export').onclick = () => {
   window.open('/api/logs/export?' + p.toString(), '_blank');
 };
 
+// ---- settings panel ----
+const backdrop = document.getElementById('settings-backdrop');
+const msgEl = document.getElementById('settings-msg');
+
+async function openSettings() {
+  msgEl.textContent = '';
+  msgEl.className = '';
+  const res = await fetch('/api/settings');
+  const data = await res.json();
+  document.getElementById('s-base-url').value = data.settings.openwb_base_url;
+  document.getElementById('s-ramdisk').value = data.settings.openwb_ramdisk_path;
+  document.getElementById('s-interval').value = data.settings.fetch_interval_seconds;
+  document.getElementById('s-retention').value = data.settings.retention_days;
+
+  const box = document.getElementById('s-sources');
+  box.innerHTML = '';
+  for (const src of data.catalog) {
+    const id = 'src-' + src.name;
+    const wrap = document.createElement('label');
+    const checked = data.settings.enabled_sources.includes(src.name) ? 'checked' : '';
+    wrap.innerHTML = `<input type="checkbox" id="${id}" value="${src.name}" ${checked}> ${src.label} <span style="color:var(--muted)">(${src.format})</span>`;
+    box.appendChild(wrap);
+  }
+  backdrop.classList.add('open');
+}
+
+function closeSettings() { backdrop.classList.remove('open'); }
+
+document.getElementById('settings-open').onclick = openSettings;
+document.getElementById('settings-cancel').onclick = closeSettings;
+backdrop.onclick = (e) => { if (e.target === backdrop) closeSettings(); };
+
+document.getElementById('settings-save').onclick = async () => {
+  const enabled = [...document.querySelectorAll('#s-sources input:checked')].map(el => el.value);
+  const patch = {
+    openwb_base_url: document.getElementById('s-base-url').value,
+    openwb_ramdisk_path: document.getElementById('s-ramdisk').value,
+    enabled_sources: enabled,
+    fetch_interval_seconds: parseInt(document.getElementById('s-interval').value, 10),
+    retention_days: parseInt(document.getElementById('s-retention').value, 10),
+  };
+  const res = await fetch('/api/settings', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    msgEl.textContent = err.detail || 'Failed to save settings';
+    msgEl.className = 'error';
+    return;
+  }
+  msgEl.textContent = 'Saved. Takes effect on the next poll.';
+  msgEl.className = 'ok';
+  await loadSources();
+  await loadDates();
+  await loadLevels();
+  await loadStatus();
+  setTimeout(closeSettings, 900);
+};
+
 (async function init() {
+  await loadSources();
   await loadDates();
   await loadLevels();
   await load();

@@ -22,8 +22,7 @@ services:
         condition: service_healthy
     environment:
       OPENWB_BASE_URL: ${OPENWB_BASE_URL:-http://10.1.5.32}
-      OPENWB_LOG_PATH: ${OPENWB_LOG_PATH:-/openWB/ramdisk/main.log}
-      OPENWB_BACKUP_COUNT: ${OPENWB_BACKUP_COUNT:-4}
+      OPENWB_RAMDISK_PATH: ${OPENWB_RAMDISK_PATH:-/openWB/ramdisk}
       FETCH_INTERVAL_SECONDS: ${FETCH_INTERVAL_SECONDS:-600}
       RETENTION_DAYS: ${RETENTION_DAYS:-30}
       DATABASE_URL: postgresql://openwb_logger:${POSTGRES_PASSWORD:-openwb_logger}@timescaledb:5432/openwb_logger

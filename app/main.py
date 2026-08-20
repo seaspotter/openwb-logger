@@ -6,9 +6,9 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from .config import settings
-from .db import close_pool, init_pool
+from .db import close_pool, get_pool, init_pool
 from .fetcher import fetcher
+from .runtime_settings import get_settings
 from .web import router
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -16,18 +16,21 @@ logger = logging.getLogger("openwb_logger")
 
 
 async def _poll_loop() -> None:
+    pool = get_pool()
     while True:
-        await fetcher.fetch_once()
-        await asyncio.sleep(settings.fetch_interval_seconds)
+        rt = await fetcher.fetch_once(pool)
+        await asyncio.sleep(rt["fetch_interval_seconds"])
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    pool = await init_pool()
+    rt = await get_settings(pool)
     logger.info(
-        "Starting openwb-logger: source=%s interval=%ss retention=%sd",
-        settings.log_url, settings.fetch_interval_seconds, settings.retention_days,
+        "Starting openwb-logger: source=%s%s sources=%s interval=%ss retention=%sd",
+        rt["openwb_base_url"], rt["openwb_ramdisk_path"], rt["enabled_sources"],
+        rt["fetch_interval_seconds"], rt["retention_days"],
     )
-    await init_pool()
     task = asyncio.create_task(_poll_loop())
     yield
     task.cancel()
