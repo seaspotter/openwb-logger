@@ -122,10 +122,11 @@ reachable beyond your LAN, put it behind an authenticated reverse proxy.
 
 ## Running behind a reverse proxy
 
-The web UI has **no authentication**. This is designed for a trusted home
-network; if it needs to be reachable beyond your LAN, put it behind a
-reverse proxy (Caddy, Traefik, nginx) with auth in front of it rather than
-exposing port 8080 directly.
+The web UI has **no authentication**, deliberately — this is designed for
+a trusted home network, not built as an in-app feature. If it needs to be
+reachable beyond your LAN, put it behind a reverse proxy with auth in
+front of it (e.g. [Authelia](https://www.authelia.com/), the same
+approach used for `knxpilot`) rather than exposing port 8080 directly.
 
 ## Troubleshooting
 

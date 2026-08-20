@@ -30,8 +30,6 @@ open an issue or just start working if something here matters to you.
       to make this straightforward later — `DATABASE_URL` can collapse to
       a fixed localhost value and everything else is already configured
       from inside the app, not env vars.
-- [ ] Authentication / access control for the web UI (currently none —
-      LAN-only by convention, see DEPLOYMENT.md).
 - [ ] Surface parse failures/unexpected formats in the UI instead of only
       the container logs
 
