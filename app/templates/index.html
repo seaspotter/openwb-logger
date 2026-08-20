@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>openwb-logger</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0f1115; --panel: #171a21; --border: #2a2e38;
+    --text: #d8dbe2; --muted: #8a8f9c; --accent: #4da3ff;
+    --debug: #6b7280; --info: #d8dbe2; --warning: #e0a95c; --error: #e5675f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, Segoe UI, Roboto, sans-serif;
+  }
+  header {
+    padding: 10px 16px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  header h1 { font-size: 16px; margin: 0 12px 0 0; font-weight: 600; }
+  select, input[type=text], input[type=number], button {
+    background: var(--panel); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 8px; font-size: 13px;
+  }
+  input[type=text] { min-width: 220px; }
+  input[type=number] { width: 80px; }
+  button { cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button:disabled { opacity: 0.5; cursor: default; }
+  label.check { display: flex; align-items: center; gap: 5px; font-size: 13px; color: var(--muted); }
+  #export-row { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+  main { padding: 10px 16px; }
+  #pager { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 13px; color: var(--muted); }
+  #log {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    height: 70vh; overflow-y: auto; padding: 8px 0; font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 12.5px;
+  }
+  .line { padding: 1px 12px; white-space: pre-wrap; word-break: break-word; }
+  .line.DEBUG { color: var(--debug); }
+  .line.INFO { color: var(--info); }
+  .line.WARNING { color: var(--warning); }
+  .line.ERROR { color: var(--error); }
+  .line mark { background: var(--accent); color: #06131f; border-radius: 2px; }
+  #status { padding: 8px 16px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--border); }
+  #status span { margin-right: 16px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>openwb-logger</h1>
+  <select id="day"></select>
+  <select id="level"><option value="">all levels</option></select>
+  <input id="search" type="text" placeholder="search...">
+  <label class="check"><input type="checkbox" id="live" checked> live tail</label>
+  <div id="export-row">
+    from <input id="from" type="number" value="0" min="0">
+    to <input id="to" type="number" placeholder="end">
+    <button id="export">Export</button>
+  </div>
+</header>
+<main>
+  <div id="pager">
+    <button id="prev">&larr; older</button>
+    <span id="range">-</span>
+    <button id="next">newer &rarr;</button>
+  </div>
+  <div id="log"></div>
+</main>
+<div id="status"></div>
+
+<script>
+const dayEl = document.getElementById('day');
+const levelEl = document.getElementById('level');
+const searchEl = document.getElementById('search');
+const liveEl = document.getElementById('live');
+const logEl = document.getElementById('log');
+const rangeEl = document.getElementById('range');
+const statusEl = document.getElementById('status');
+const LIMIT = 1000;
+let offset = 0;
+let liveTimer = null;
+
+function escapeHtml(s) {
+  return s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+}
+
+function highlight(raw, term) {
+  const esc = escapeHtml(raw);
+  if (!term) return esc;
+  const re = new RegExp(escapeHtml(term).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'ig');
+  return esc.replace(re, m => `<mark>${m}</mark>`);
+}
+
+function params(extra) {
+  const p = new URLSearchParams();
+  if (dayEl.value) p.set('day', dayEl.value);
+  if (levelEl.value) p.set('level', levelEl.value);
+  if (searchEl.value) p.set('search', searchEl.value);
+  for (const k in extra) p.set(k, extra[k]);
+  return p;
+}
+
+async function loadDates() {
+  const res = await fetch('/api/dates');
+  const data = await res.json();
+  dayEl.innerHTML = '';
+  const todayOpt = new Option('today (live)', '__today__');
+  dayEl.add(todayOpt);
+  for (const d of data.dates) dayEl.add(new Option(d, d));
+  dayEl.value = '__today__';
+}
+
+async function loadLevels() {
+  const res = await fetch('/api/levels');
+  const data = await res.json();
+  for (const l of data.levels) levelEl.add(new Option(l, l));
+}
+
+function render(lines, total, off) {
+  const term = searchEl.value;
+  logEl.innerHTML = lines.map(l =>
+    `<div class="line ${l.level || ''}">${highlight(l.raw, term)}</div>`
+  ).join('');
+  rangeEl.textContent = total === 0 ? 'no lines' : `${off + 1}-${off + lines.length} of ${total}`;
+}
+
+async function load() {
+  const isToday = dayEl.value === '__today__';
+  const today = new Date().toISOString().slice(0, 10);
+  const extra = isToday ? { day: today, tail: 'true', limit: LIMIT } : { offset, limit: LIMIT };
+  const dayBackup = dayEl.value;
+  if (isToday) dayEl.value = '__today__';
+  const p = params(extra);
+  if (isToday) p.set('day', today);
+  const res = await fetch('/api/logs?' + p.toString());
+  const data = await res.json();
+  offset = data.offset;
+  render(data.lines, data.total, data.offset);
+  if (isToday && liveEl.checked) logEl.scrollTop = logEl.scrollHeight;
+}
+
+async function loadStatus() {
+  const res = await fetch('/api/status');
+  const s = await res.json();
+  statusEl.innerHTML =
+    `<span>source: ${s.source}</span>` +
+    `<span>poll: ${s.fetch_interval_seconds}s</span>` +
+    `<span>retention: ${s.retention_days}d</span>` +
+    `<span>rows: ${s.total_rows}</span>` +
+    `<span>last fetch: ${s.last_fetch_at || '-'}</span>` +
+    (s.last_error ? `<span style="color:var(--error)">error: ${s.last_error}</span>` : '') +
+    (s.total_gaps_detected ? `<span>gaps: ${s.total_gaps_detected} (recovered ${s.total_gaps_recovered})</span>` : '');
+}
+
+function restartLiveTimer() {
+  if (liveTimer) clearInterval(liveTimer);
+  liveTimer = setInterval(() => {
+    if (dayEl.value === '__today__' && liveEl.checked) load();
+  }, 5000);
+}
+
+document.getElementById('prev').onclick = () => { offset = Math.max(0, offset - LIMIT); load(); };
+document.getElementById('next').onclick = () => { offset = offset + LIMIT; load(); };
+dayEl.onchange = () => { offset = 0; load(); };
+levelEl.onchange = () => { offset = 0; load(); };
+let searchDebounce;
+searchEl.oninput = () => { clearTimeout(searchDebounce); searchDebounce = setTimeout(() => { offset = 0; load(); }, 300); };
+
+document.getElementById('export').onclick = () => {
+  const from = document.getElementById('from').value || 0;
+  const to = document.getElementById('to').value;
+  const isToday = dayEl.value === '__today__';
+  const day = isToday ? new Date().toISOString().slice(0, 10) : dayEl.value;
+  const p = params({ start: from });
+  p.set('day', day);
+  if (to) p.set('end', to);
+  window.open('/api/logs/export?' + p.toString(), '_blank');
+};
+
+(async function init() {
+  await loadDates();
+  await loadLevels();
+  await load();
+  await loadStatus();
+  restartLiveTimer();
+  setInterval(loadStatus, 5000);
+})();
+</script>
+</body>
+</html>

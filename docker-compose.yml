@@ -1,0 +1,35 @@
+services:
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: openwb_logger
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-openwb_logger}
+      POSTGRES_DB: openwb_logger
+    volumes:
+      - timescale_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openwb_logger"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    environment:
+      OPENWB_BASE_URL: ${OPENWB_BASE_URL:-http://10.1.5.32}
+      OPENWB_LOG_PATH: ${OPENWB_LOG_PATH:-/openWB/ramdisk/main.log}
+      OPENWB_BACKUP_COUNT: ${OPENWB_BACKUP_COUNT:-4}
+      FETCH_INTERVAL_SECONDS: ${FETCH_INTERVAL_SECONDS:-600}
+      RETENTION_DAYS: ${RETENTION_DAYS:-30}
+      DATABASE_URL: postgresql://openwb_logger:${POSTGRES_PASSWORD:-openwb_logger}@timescaledb:5432/openwb_logger
+      PORT: 8080
+    ports:
+      - "8080:8080"
+
+volumes:
+  timescale_data:
