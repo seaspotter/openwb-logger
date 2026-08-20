@@ -103,7 +103,7 @@ async def api_logs(
     from_: datetime | None = Query(default=None, alias="from"),
     to: datetime | None = None,
     offset: int = 0,
-    limit: int = Query(default=500, le=5000),
+    limit: int = Query(default=500, le=20000),
     tail: bool = False,
 ):
     pool = get_pool()

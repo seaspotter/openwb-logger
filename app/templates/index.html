@@ -178,6 +178,12 @@ const rangeFromEl = document.getElementById('range-from');
 const rangeToEl = document.getElementById('range-to');
 const rangeClearBtn = document.getElementById('range-clear');
 const LIMIT = 1000;
+// Zeitraum mode fetches the whole selected window in one request instead of
+// paging -- the user already bounded it by picking from/to, so 1000-at-a-
+// time would just defeat the point (see CHANGELOG). Capped, not unbounded,
+// so an accidentally huge window can't hang the browser -- see the
+// truncation notice in load() when total exceeds this.
+const RANGE_LIMIT = 20000;
 let offset = 0;
 let liveTimer = null;
 
@@ -190,6 +196,8 @@ function updateRangeUI() {
   dayEl.disabled = active;
   liveEl.disabled = active;
   rangeClearBtn.disabled = !active;
+  document.getElementById('prev').disabled = active;
+  document.getElementById('next').disabled = active;
 }
 rangeFromEl.onchange = rangeToEl.onchange = () => { offset = 0; updateRangeUI(); load(); };
 rangeClearBtn.onclick = () => {
@@ -310,13 +318,16 @@ async function load() {
   const extra = liveTail
     ? { day: today, tail: 'true', limit: LIMIT }
     : customRange
-      ? { offset, limit: LIMIT }
+      ? { offset: 0, limit: RANGE_LIMIT }
       : { day: isToday ? today : dayEl.value, offset, limit: LIMIT };
   const p = params(extra);
   const res = await fetch('/api/logs?' + p.toString());
   const data = await res.json();
   offset = data.offset;
   render(data.lines, data.total, data.offset);
+  if (customRange && data.total > data.lines.length) {
+    rangeEl.textContent += ` — auf die ersten ${RANGE_LIMIT} begrenzt, Zeitraum eingrenzen für den Rest`;
+  }
   if (liveTail) logEl.scrollTop = sortDesc ? 0 : logEl.scrollHeight;
 }
 
@@ -494,6 +505,7 @@ updateBtn.onclick = async () => {
 };
 
 (async function init() {
+  updateRangeUI();
   await loadSources();
   await loadDates();
   await loadLevels();

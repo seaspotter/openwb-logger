@@ -22,7 +22,12 @@ No formal releases yet — entries are grouped by what shipped, not by tag.
   the day dropdown, for viewing an arbitrary time window instead of a
   whole calendar day — backed by new `from`/`to` filters on `/api/logs`
   and `/api/logs/export` (`ts >= ` / `ts < `, independent of the existing
-  `day` equality filter).
+  `day` equality filter). Fetches the whole selected window in one request
+  (up to 20000 lines, `/api/logs`'s own cap raised to match) instead of
+  paging 1000 at a time — you already bounded it by picking from/to, so
+  paging through it in 1000-line chunks defeated the point. Past that cap
+  the view shows only the earliest 20000 lines plus a notice to narrow the
+  range further.
 - Newest-first display toggle (the ⇅ button next to "Exportieren"),
   remembered in `localStorage`. Purely a display-order flip on already-
   fetched lines; doesn't change what's fetched or how paging works.
