@@ -167,6 +167,19 @@ what that means in practice for this project.
   based on those flags instead of a total.
 
 ### Added
+- `LICENSE`: GNU Affero General Public License v3.0 or later — same
+  license as the sibling project `knxpilot`, copied verbatim. Chosen
+  because this is a network service; AGPL closes the "SaaS loophole"
+  plain GPL has. `app/main.py` now carries the matching copyright/license
+  header, and `README.md` gets a short "License" section explaining why.
+- Project logo (`docs/logo.svg`, the same green "log lines" glyph used as
+  the in-app favicon/header mark) and a real screenshot in `README.md`.
+
+### Fixed
+- "How it works" diagram in `README.md` was hand-drawn ASCII box art that
+  didn't actually line up (box borders and arrows drifted row to row).
+  Replaced with a Mermaid flowchart, which GitHub renders natively in
+  Markdown -- no more manually counting characters to keep boxes aligned.
 - Alerts indicator: a quiet "!" button in the header (next to "Jetzt
   abrufen") replaces the scattered inline status-bar warnings
   ("Fehler:"/"Nicht erreichbar:"/"Format-Warnung:") with one place to

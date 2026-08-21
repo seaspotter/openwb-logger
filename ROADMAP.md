@@ -3,7 +3,7 @@
 Loose notes on where this is headed, not a commitment. Reorder freely —
 open an issue or just start working if something here matters to you.
 
-## Done
+## Done (v0.1.0)
 
 - [x] Poll openWB's `main.log`, gap-free merge with rotation recovery
 - [x] Structured storage in TimescaleDB, native retention policy

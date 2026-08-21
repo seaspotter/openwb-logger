@@ -1,3 +1,5 @@
+<img src="docs/logo.svg" width="64" height="64" align="left" alt="">
+
 # openwb-logger
 
 openWB keeps only about an hour of detail in `main.log` on its ramdisk
@@ -6,6 +8,10 @@ logs over HTTP on a configurable interval, merges them gap-free, and
 stores them in TimescaleDB so you get a complete, searchable history
 instead of a rolling hour. A small web UI lets you browse, live-tail,
 filter, search, and export it — light or dark, your call.
+
+<br clear="left">
+
+![Screenshot](docs/screenshot.png)
 
 ## Features
 
@@ -46,19 +52,27 @@ filter, search, and export it — light or dark, your call.
 
 ## How it works
 
-```
-openWB device                openwb-logger                 you
-┌─────────────┐   HTTP GET   ┌──────────────────┐   HTTP   ┌────────┐
-│ ramdisk/     │─────────────▶│ fetcher (poll)   │          │ browser│
-│ main.log,    │  every N min │        │         │          │        │
-│ chargelog... │◀─ (on gap) ──│        ▼         │          │        │
-└─────────────┘              │  parse + insert  │          │        │
-                              │        ▼         │          │        │
-                              │  TimescaleDB      │◀── SQL ──│ web UI │
-                              │  (log_lines,       │          └────────┘
-                              │   app_settings,     │
-                              │   retention policy)│
-                              └──────────────────┘
+```mermaid
+flowchart LR
+    subgraph openwb["openWB device"]
+        ramdisk["ramdisk/<br/>main.log, chargelog, ..."]
+    end
+
+    subgraph logger["openwb-logger"]
+        direction TB
+        fetcher["fetcher (poll)"]
+        parse["parse + insert"]
+        db[("TimescaleDB<br/>log_lines, app_settings,<br/>retention policy")]
+        fetcher --> parse --> db
+    end
+
+    subgraph browser["you"]
+        ui["web UI"]
+    end
+
+    ramdisk -- "HTTP GET, every N sec" --> fetcher
+    fetcher -. "on gap: rotated backups" .-> ramdisk
+    db <-- "SQL" --> ui
 ```
 
 Full breakdown of each module in [CLAUDE.md](CLAUDE.md).
@@ -100,3 +114,12 @@ the only setup step — everything else is configured through the app.
   (see [DEPLOYMENT.md](DEPLOYMENT.md)) to show your local time rather than
   UTC.
 - No authentication on the web UI — see [DEPLOYMENT.md](DEPLOYMENT.md).
+
+## License
+
+GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later) — see
+[LICENSE](LICENSE). Chosen deliberately because this is a network service
+(a web app): AGPL closes the "SaaS loophole" that plain GPL has — if
+someone runs a modified version of this tool as a hosted service, the
+modified source has to be made available to that service's users too, not
+just to whoever receives a copy of the software itself.

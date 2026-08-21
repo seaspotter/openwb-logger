@@ -1,3 +1,11 @@
+"""openwb-logger
+--------------------------------
+Polls openWB's ramdisk logs into TimescaleDB for full retained history.
+
+Copyright (C) 2026 the project author(s).
+Licensed under the GNU Affero General Public License v3.0 or later.
+See the LICENSE file in the repository root for the full text.
+"""
 from __future__ import annotations
 
 import asyncio
