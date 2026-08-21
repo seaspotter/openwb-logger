@@ -17,7 +17,7 @@ from .db import get_pool
 from .fetcher import fetcher
 from .log_catalog import CATALOG
 from .runtime_settings import ValidationError, get_settings, update_settings
-from .updater import check_for_update, get_current_commit, run_update, self_update_available
+from .updater import check_for_update, get_current_version, run_update, self_update_available
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
@@ -260,7 +260,9 @@ async def api_export_paste(
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"Paste-Upload fehlgeschlagen: {exc}")
     except (KeyError, ValueError):
-        raise HTTPException(status_code=502, detail="Paste-Server hat eine unerwartete Antwort geliefert")
+        raise HTTPException(
+            status_code=502, detail="Paste-Server hat eine unerwartete Antwort geliefert"
+        )
 
     return {"url": f"{rt['paste_view_url']}{key}"}
 
@@ -311,7 +313,7 @@ async def api_status():
 def api_update_version():
     """Local-only (no network), cheap enough to call on every settings-panel
     open -- unlike /api/update/check below, which does a git fetch."""
-    return {"current_commit": get_current_commit(), "available": self_update_available()}
+    return {"current_commit": get_current_version(), "available": self_update_available()}
 
 
 @router.get("/api/update/check")

@@ -33,19 +33,33 @@ def _run(*args: str, timeout: int = 60) -> tuple[int, str, str]:
     return result.returncode, result.stdout.strip(), result.stderr.strip()
 
 
-def get_current_commit() -> str | None:
+def _short_sha(ref: str) -> str | None:
+    code, out, _ = _run("git", "-C", REPO_DIR, "rev-parse", "--short", ref)
+    return out if code == 0 else None
+
+
+def _describe(ref: str) -> str | None:
+    code, out, _ = _run("git", "-C", REPO_DIR, "describe", "--tags", "--always", "--dirty", ref)
+    return out if code == 0 else None
+
+
+def get_current_version() -> str | None:
     """Local-only (no network), cheap enough to call on every settings-panel
-    open -- unlike check_for_update() below, which does a git fetch. Falls
-    back to OPENWB_LOGGER_IMAGE_VERSION (baked in at build time, see
-    Dockerfile) when there's no live git checkout to describe, so a plain
-    image deployment still shows something meaningful instead of "-"."""
-    code, out, _ = _run("git", "-C", REPO_DIR, "rev-parse", "--short", "HEAD")
-    if code == 0:
-        return out
-    return os.environ.get("OPENWB_LOGGER_IMAGE_VERSION") or None
+    open -- unlike check_for_update() below, which does a git fetch. A tag
+    (e.g. "v0.1.0", or "v0.1.0-3-gabc1234" past one) rather than a bare
+    SHA, once this repo has any tags. Falls back to
+    OPENWB_LOGGER_IMAGE_VERSION (baked in at build time, see Dockerfile)
+    when there's no live git checkout to describe, so a plain image
+    deployment still shows something meaningful instead of "-"."""
+    return _describe("HEAD") or os.environ.get("OPENWB_LOGGER_IMAGE_VERSION") or None
 
 
 def check_for_update() -> dict:
+    """`current`/`latest` are shown as `git describe` strings (nice, tag-
+    based), but compared as plain SHAs -- describe strings for the same
+    commit are only guaranteed identical when there's a tag exactly on it,
+    so comparing them directly would false-positive on every commit past
+    the last tag."""
     if not self_update_available():
         return {
             "current": None, "latest": None, "update_available": False,
@@ -54,21 +68,23 @@ def check_for_update() -> dict:
     try:
         code, _, err = _run("git", "-C", REPO_DIR, "fetch", timeout=30)
         if code != 0:
-            return {"current": get_current_commit(), "latest": None,
+            return {"current": get_current_version(), "latest": None,
                     "update_available": False, "error": err}
-        current = get_current_commit()
-        code, latest, _ = _run("git", "-C", REPO_DIR, "rev-parse", "--short", "@{u}")
-        if code != 0:
+        current_sha = _short_sha("HEAD")
+        latest_sha = _short_sha("@{u}")
+        if latest_sha is None:
             return {
-                "current": current, "latest": None, "update_available": False,
+                "current": get_current_version(), "latest": None, "update_available": False,
                 "error": "Kein Upstream-Branch konfiguriert (git branch --set-upstream-to=...).",
             }
         return {
-            "current": current, "latest": latest,
-            "update_available": current != latest, "error": None,
+            "current": get_current_version(),
+            "latest": _describe("@{u}") or latest_sha,
+            "update_available": current_sha != latest_sha,
+            "error": None,
         }
     except subprocess.TimeoutExpired:
-        return {"current": get_current_commit(), "latest": None,
+        return {"current": get_current_version(), "latest": None,
                 "update_available": False, "error": "git fetch: Zeitüberschreitung"}
 
 

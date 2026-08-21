@@ -10,6 +10,36 @@ merge) and tag a release there — see `CHANGELOG.md` for what's shipped
 since the last one. `main` is what `DEPLOYMENT.md`'s `git clone` /
 `git pull` instructions assume.
 
+## Versioning and releasing
+
+[Semantic versioning](https://semver.org/): tags on `main` are
+`vMAJOR.MINOR.PATCH`. Given this is a self-contained Docker app (no
+public API/library surface), the practical reading is:
+
+- **PATCH** — bug fixes, no settings/behavior removed or changed shape.
+- **MINOR** — new features, new settings, anything additive.
+- **MAJOR** — anything that isn't a drop-in upgrade: a removed/renamed
+  setting, a schema change without an automatic migration path, a
+  required manual step (like the pg16→pg18 volume rename in
+  `DEPLOYMENT.md`, which *would* have warranted a major bump had this
+  project already been past `1.0.0` when it landed).
+
+Staying on `0.x.y` for now (starting at `0.1.0`) — normal for early days,
+and honest about the fact that nothing here is a stable, load-bearing
+interface yet.
+
+To cut a release:
+
+1. On `dev`, rename `CHANGELOG.md`'s `## [Unreleased]` section to
+   `## [X.Y.Z] - YYYY-MM-DD` and start a fresh empty `[Unreleased]` above
+   it.
+2. Merge `dev` into `main`.
+3. `git tag vX.Y.Z && git push origin main --tags`.
+
+That last push is what actually triggers
+`.github/workflows/docker-publish.yml` to build and publish the
+multi-arch image — see `DEPLOYMENT.md`.
+
 ## Setup
 
 Requires Python 3.12+ and a local TimescaleDB (easiest via Docker).
