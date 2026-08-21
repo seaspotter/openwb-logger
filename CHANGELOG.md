@@ -9,6 +9,16 @@ what that means in practice for this project.
 ## [0.1.0] - 2026-08-21
 
 ### Fixed
+- `docker-compose.yml`'s pg18 upgrade shipped with the wrong volume mount
+  point and failed to start outright — caught while actually walking
+  through the migration. The official Postgres images changed their
+  expected mount target starting with major version 18, from
+  `/var/lib/postgresql/data` to `/var/lib/postgresql` (letting the image
+  manage its own version-specific subdirectory underneath, e.g.
+  `18/docker`); mounting at the old path makes the 18+ entrypoint refuse
+  to start, treating anything it finds there as leftover data from an
+  in-place image upgrade it won't perform automatically. Fixed to mount
+  at `/var/lib/postgresql`.
 - Per-source fetch errors (e.g. "could not reach ...") were computed by
   the backend and included in `/api/status`, but the status bar never
   actually displayed them — only a whole-cycle failure (a DB problem,

@@ -17,7 +17,18 @@ services:
       # volume is left completely untouched so migrating existing data
       # into it is a deliberate, unhurried step (see DEPLOYMENT.md), not
       # something forced by the upgrade itself.
-      - timescale_data_pg18:/var/lib/postgresql/data
+      #
+      # Mounted at /var/lib/postgresql (not .../data, unlike pg16/17):
+      # the official Postgres images changed their expected mount point
+      # starting with major version 18, moving PGDATA to a version-
+      # specific subdirectory of /var/lib/postgresql (e.g.
+      # /var/lib/postgresql/18/docker) instead of a fixed .../data path,
+      # to support pg_ctlcluster-style layouts and `pg_upgrade --link`.
+      # Mounting at the old .../data path makes the 18+ entrypoint refuse
+      # to start, treating whatever it finds there as leftover data from
+      # an in-place image upgrade it won't perform automatically. See
+      # https://github.com/docker-library/postgres/pull/1259.
+      - timescale_data_pg18:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U openwb_logger"]
       interval: 5s
