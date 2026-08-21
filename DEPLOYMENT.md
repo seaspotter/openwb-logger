@@ -21,6 +21,12 @@ use it instead of `build: .`, self-update won't have anything to update
 in place (no bind-mounted git checkout) and you'd `docker compose pull`
 for new versions instead.
 
+Two services (the app and its own TimescaleDB) is the deliberate, final
+architecture here, not an interim step toward a bundled single image —
+considered and decided against; the current setup already covers what a
+single image would have, without giving up the ability to run `docker
+compose pull`/upgrade the database image independently of the app.
+
 ## Running on Proxmox (Ubuntu Server)
 
 Two options for the container itself; everything after that is identical
@@ -54,22 +60,76 @@ same bridge as your LAN, not an isolated Proxmox-internal network) — on
 the wrong network, every source just shows a `last_error` in the status
 bar.
 
+## Running via Portainer (NAS, etc.)
+
+Use the prebuilt image rather than `build: .` here — a Portainer stack
+doesn't have (and doesn't need) a git checkout of this repo on the host,
+just the compose file itself:
+
+```yaml
+services:
+  timescaledb:
+    image: timescale/timescaledb:latest-pg18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: openwb_logger
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: openwb_logger
+    volumes:
+      - /path/to/your/data/timescaledb:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openwb_logger"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    image: ghcr.io/seaspotter/openwb-logger:latest
+    restart: unless-stopped
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      PORT: 8080
+      TZ: Europe/Berlin
+    ports:
+      - "8080:8080"
+```
+
+Replace `/path/to/your/data/timescaledb` with wherever you want the
+database files to actually live — a bind mount to a real path (rather
+than a Docker-managed named volume) is usually the more convenient choice
+on a NAS, since it's then visible/backupable through the NAS's own file
+manager. Set `POSTGRES_PASSWORD` once, either via Portainer's own
+"Environment variables" field on the stack (not the YAML text — this
+avoids ever needing to type the same secret twice) or, if you'd rather
+keep everything in the compose text itself, replace both
+`${POSTGRES_PASSWORD}` occurrences with the same literal value — but
+exactly the same value in both places, since a mismatch fails Postgres
+authentication outright rather than falling back to anything.
+
+No self-update here (see below) — no bind-mounted git checkout to `git
+pull` against, since you're running the published image. Update by
+re-pulling the image and redeploying the stack from Portainer instead;
+the settings panel's "Prüfen"/"Update" buttons correctly hide themselves
+in this case rather than sitting there as dead UI.
+
 ## Configuration
 
 There is deliberately almost nothing to configure in `.env` — where openWB
 is, which logs to collect, retention, and poll interval are all set up
 *inside the app* (settings panel, gear icon) after first start, stored in
 the database, and take effect on the next poll with no restart. That keeps
-`.env` down to pure infra wiring, which matters once this app and its
-database are bundled into a single image (see ROADMAP.md) — at that point
-there's nothing left here to set before first start at all.
+`.env` down to pure infra wiring: the database password, the web port, and
+the container's clock.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `POSTGRES_PASSWORD` | — | Set a real password in `.env`; used by both services |
+| `POSTGRES_PASSWORD` | — | Set a real password in `.env`. The **same variable** is passed to both services — `timescaledb` reads it directly, and `app` builds its own connection string from it (`app/config.py`), so there's only ever one place to set it, not two copies of the same secret to keep in sync. |
 | `PORT` | `8080` | Web UI / API port |
 | `TZ` | `Europe/Berlin` | Container timezone. Affects only app-generated timestamps (e.g. "Letzter Abruf" in the status bar) — log lines' own `ts` come from openWB's log text and are unaffected. Override in `.env` if you're not in that zone. |
-| `DATABASE_URL` | `postgresql://openwb_logger:openwb_logger@localhost:5432/openwb_logger` | Postgres/TimescaleDB connection string (docker-compose sets this for you from `POSTGRES_PASSWORD`; only relevant if you're not using docker-compose) |
+| `DATABASE_URL` | — | Full Postgres/TimescaleDB connection string; wins outright over `POSTGRES_PASSWORD` if set. An escape hatch for anything that deviates from this project's own `docker-compose.yml` (local dev against `localhost`, a differently-named Postgres host, a non-standard user/db name) — not needed for the standard two-service setup above. |
 
 On first start, the app seeds its settings with hardcoded fallback
 defaults (`http://openwb`, `/openWB/ramdisk`, 120s poll interval, 7 days

@@ -42,7 +42,11 @@ services:
       timescaledb:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://openwb_logger:${POSTGRES_PASSWORD:-openwb_logger}@timescaledb:5432/openwb_logger
+      # Same variable as timescaledb's own POSTGRES_PASSWORD above -- only
+      # set it once in .env. app/config.py builds the full connection
+      # string itself (user/db/host/port match the timescaledb service
+      # below, fixed values a standard deployment doesn't need to vary).
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-openwb_logger}
       PORT: ${PORT:-8080}
       # Container defaults to UTC otherwise, which shows up as an
       # apparently-wrong "Letzter Abruf" time in the status bar (that

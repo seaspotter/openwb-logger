@@ -6,6 +6,29 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
+### Changed
+- `docker-compose.yml`'s `app` service no longer needs a hand-assembled
+  `DATABASE_URL` -- it now gets the same `POSTGRES_PASSWORD` variable the
+  `timescaledb` service already uses, and `app/config.py` builds the
+  connection string itself (user/db/host/port are fixed values matching
+  that service, not something a standard deployment needs to vary). Only
+  one place to set the password now instead of two copies of the same
+  secret to keep in sync -- a real mismatch between them (rather than a
+  bad password outright) is exactly what caused an authentication failure
+  while setting up a NAS/Portainer deployment. `DATABASE_URL` still works
+  and still wins outright if set, as an escape hatch for anything that
+  deviates from the standard setup (local dev, a differently-named host).
+- Dropped "all-in-one image" from `ROADMAP.md` -- considered and decided
+  against. The current two-service `docker-compose.yml` already covers
+  what a bundled image would have, without giving up independent
+  `docker compose pull` upgrades of the database image. Documented as a
+  deliberate choice in `DEPLOYMENT.md` rather than an unstarted item.
+- `DEPLOYMENT.md` gained a generic "Running via Portainer (NAS, etc.)"
+  section (prebuilt image, bind-mount the database data wherever you
+  want, no self-update since there's no git checkout to pull) -- written
+  up generically after actually working through a real NAS/Portainer
+  deployment.
+
 ### Added
 - Alerts button now supports acknowledging: opening the modal remembers
   exactly which alert texts you've seen (persisted in `localStorage`), so

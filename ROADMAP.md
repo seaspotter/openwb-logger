@@ -36,14 +36,6 @@ open an issue or just start working if something here matters to you.
 
 ## Next
 
-- [ ] All-in-one image: bundle the app and TimescaleDB into a single
-      container/image for simpler distribution, instead of the current
-      two-service docker-compose setup. The infra-vs-runtime-settings split
-      (`app/config.py` vs `app/runtime_settings.py`) was done specifically
-      to make this straightforward later — `DATABASE_URL` can collapse to
-      a fixed localhost value and everything else is already configured
-      from inside the app, not env vars.
-
 ## Someday / maybe
 
 - [ ] Multi-openWB support (more than one device polled into the same DB)

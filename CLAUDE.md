@@ -18,10 +18,14 @@ variables, no restart. Full picture in `README.md`; details in
 ## Architecture
 
 - `app/config.py` — **infra-level** config only, read once from env vars
-  at import time: `DATABASE_URL` and `PORT`. Nothing about the tool's own
-  behavior lives here on purpose (see the module docstring) — that split
-  is what makes it possible to eventually bundle the app and its database
-  into a single image with essentially nothing left to configure via env.
+  at import time: `DATABASE_URL`/`POSTGRES_PASSWORD` and `PORT`. Nothing
+  about the tool's own behavior lives here on purpose (see the module
+  docstring). `POSTGRES_PASSWORD` alone is enough to build the connection
+  string (matching `docker-compose.yml`'s `timescaledb` service) — the
+  same variable reaches both services, so there's only ever one place to
+  set the password, not two copies of the same secret to keep in sync;
+  `DATABASE_URL` remains an escape hatch for anything that deviates from
+  the standard setup.
 - `app/runtime_settings.py` — **all** user-editable settings (openWB
   location, enabled log sources, retention, poll interval), stored as one
   JSONB row in `app_settings` and re-read every poll cycle, so changes
