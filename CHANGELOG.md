@@ -42,6 +42,14 @@ No formal releases yet — entries are grouped by what shipped, not by tag.
   (system preference only decides the very first, pre-`localStorage` load).
 
 ### Changed
+- TimescaleDB moved from Postgres 16 to 18 (newest major version it
+  currently ships images for; Postgres has no LTS concept, every major
+  gets an equal 5-year support window — pg18's runs to Nov 2030 vs.
+  pg16's Nov 2028). The data volume is renamed `timescale_data` →
+  `timescale_data_pg18` specifically so upgrading an existing deployment
+  gets a fresh empty pg18 database instead of failing to start against an
+  incompatible pg16 data directory — see DEPLOYMENT.md for the
+  dump/restore steps to actually migrate existing data across.
 - Default fetch interval 600s → 120s and default retention 30d → 7d for
   *new* installs (`DEFAULT_*` in `app/runtime_settings.py`; only seeded
   once, on first boot when no settings row exists yet, so this doesn't

@@ -1,13 +1,23 @@
 services:
   timescaledb:
-    image: timescale/timescaledb:latest-pg16
+    image: timescale/timescaledb:latest-pg18
     restart: unless-stopped
     environment:
       POSTGRES_USER: openwb_logger
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-openwb_logger}
       POSTGRES_DB: openwb_logger
     volumes:
-      - timescale_data:/var/lib/postgresql/data
+      # Named timescale_data_pg18, not timescale_data: upgrading from an
+      # earlier openwb-logger on pg16 would otherwise try to start pg18's
+      # binary against a pg16-formatted data directory, which fails
+      # outright (Postgres can't read across major versions in place).
+      # A differently-named volume means that upgrade instead gets a
+      # fresh, empty pg18 database automatically -- a working app with no
+      # history yet, rather than a stack that won't start -- and the old
+      # volume is left completely untouched so migrating existing data
+      # into it is a deliberate, unhurried step (see DEPLOYMENT.md), not
+      # something forced by the upgrade itself.
+      - timescale_data_pg18:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U openwb_logger"]
       interval: 5s
@@ -43,4 +53,4 @@ services:
       - .:/app
 
 volumes:
-  timescale_data:
+  timescale_data_pg18:
