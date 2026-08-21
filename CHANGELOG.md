@@ -6,6 +6,8 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-21
+
 ### Added
 - MCP `get_storage_info` tool: total row count, oldest/newest timestamp,
   a table/index/toast/total byte breakdown of the whole `log_lines`
@@ -20,6 +22,14 @@ what that means in practice for this project.
   by the browser before saving, defeating the point of a smaller
   download. Unrelated to "An Paste senden", which already always gzips
   its upload regardless of this setting.
+- Alerts button now supports acknowledging: opening the modal remembers
+  exactly which alert texts you've seen (persisted in `localStorage`), so
+  the badge goes quiet again afterward instead of staying lit for a
+  rolling condition (e.g. "X ERROR-Zeile(n) in der letzten Stunde") that
+  never fully clears on its own. Lights back up on its own if anything
+  actually changes -- a new alert appears, or an existing one's count
+  changes (a different string than what was acknowledged) -- no
+  time-based re-alarm needed.
 
 ### Changed
 - `docker-compose.yml`'s `app` service no longer needs a hand-assembled
@@ -43,16 +53,19 @@ what that means in practice for this project.
   want, no self-update since there's no git checkout to pull) -- written
   up generically after actually working through a real NAS/Portainer
   deployment.
-
-### Added
-- Alerts button now supports acknowledging: opening the modal remembers
-  exactly which alert texts you've seen (persisted in `localStorage`), so
-  the badge goes quiet again afterward instead of staying lit for a
-  rolling condition (e.g. "X ERROR-Zeile(n) in der letzten Stunde") that
-  never fully clears on its own. Lights back up on its own if anything
-  actually changes -- a new alert appears, or an existing one's count
-  changes (a different string than what was acknowledged) -- no
-  time-based re-alarm needed.
+- Dropped the `raw` column from `log_lines`. For a DETAILED-format line, it
+  stored the entire original text -- timestamp, logger, line number,
+  level, thread, *and* message -- even though all but the message are
+  already stored as their own columns (measured ~40% of that column's
+  bytes as pure duplication on a real 1M+ row instance). The exact
+  original line is now reconstructed on read from the structured columns
+  instead (`RAW_EXPR` in `app/db.py`), so display, export, and search
+  ("Suchen") are all byte-for-byte unchanged -- verified against a real
+  Postgres instance (DETAILED/SHORT/continuation lines, and a simulated
+  upgrade from the old schema) before landing this, including one real
+  bug caught that way: plain `to_char()` isn't IMMUTABLE, so it can't be
+  used directly in the expression index backing search -- fixed with a
+  small IMMUTABLE wrapper function instead.
 
 ### Fixed
 - Changing the level/source/search filter while live-tailing "Heute
@@ -73,21 +86,6 @@ what that means in practice for this project.
   permanently dead buttons sitting there regardless of deployment type.
   Now hidden entirely in that case (`DEPLOYMENT.md` already documented
   this as the intended behavior; the frontend just didn't match it).
-
-### Changed
-- Dropped the `raw` column from `log_lines`. For a DETAILED-format line, it
-  stored the entire original text -- timestamp, logger, line number,
-  level, thread, *and* message -- even though all but the message are
-  already stored as their own columns (measured ~40% of that column's
-  bytes as pure duplication on a real 1M+ row instance). The exact
-  original line is now reconstructed on read from the structured columns
-  instead (`RAW_EXPR` in `app/db.py`), so display, export, and search
-  ("Suchen") are all byte-for-byte unchanged -- verified against a real
-  Postgres instance (DETAILED/SHORT/continuation lines, and a simulated
-  upgrade from the old schema) before landing this, including one real
-  bug caught that way: plain `to_char()` isn't IMMUTABLE, so it can't be
-  used directly in the expression index backing search -- fixed with a
-  small IMMUTABLE wrapper function instead.
 
 ## [0.1.0] - 2026-08-21
 
