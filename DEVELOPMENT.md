@@ -33,7 +33,18 @@ To cut a release:
 1. On `dev`, rename `CHANGELOG.md`'s `## [Unreleased]` section to
    `## [X.Y.Z] - YYYY-MM-DD` and start a fresh empty `[Unreleased]` above
    it.
-2. Merge `dev` into `main`.
+2. `git checkout main && git merge --ff-only dev` — **fast-forward, not
+   `--no-ff`**. `dev` never has anything `main` lacks in this workflow, so
+   this always succeeds as a clean fast-forward; using `--no-ff` instead
+   creates a separate merge commit that `dev`'s own history never
+   receives, meaning the release tag (next step) becomes an ancestor of
+   *that merge commit* but not of `dev`'s continued history — so any
+   deployment that tracks `dev` (e.g. self-update pulling straight from
+   `dev`, not `main`) can never `git describe` back to an exact tag name
+   again, only ever "vX.Y.Z-N-g...". Learned this the hard way once
+   already; if it happens again, `git checkout dev && git merge --ff-only
+   main` repairs it (safe exactly because `dev` never has unique commits
+   `main` lacks).
 3. `git tag vX.Y.Z && git push origin main --tags`.
 
 That last push is what actually triggers
