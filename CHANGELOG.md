@@ -6,6 +6,16 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
+### Added
+- Alerts button now supports acknowledging: opening the modal remembers
+  exactly which alert texts you've seen (persisted in `localStorage`), so
+  the badge goes quiet again afterward instead of staying lit for a
+  rolling condition (e.g. "X ERROR-Zeile(n) in der letzten Stunde") that
+  never fully clears on its own. Lights back up on its own if anything
+  actually changes -- a new alert appears, or an existing one's count
+  changes (a different string than what was acknowledged) -- no
+  time-based re-alarm needed.
+
 ### Fixed
 - Changing the level/source/search filter while live-tailing "Heute
   (live)" silently jumped to the start of the day (ascending order from

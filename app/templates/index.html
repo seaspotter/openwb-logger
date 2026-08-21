@@ -626,6 +626,13 @@ async function loadStatus() {
 // *log content* (recent_error_lines), not just fetch/parse health.
 const alertsBtn = document.getElementById('alerts-btn');
 let currentAlerts = [];
+// Acknowledging: once you've opened the modal and seen the current
+// alerts, the badge goes quiet for exactly that set of texts -- persisted
+// so it survives a reload. Anything that changes (a new alert appears, or
+// an existing one's count changes -- "11 ERROR-Zeile(n)" is a different
+// string than "15 ERROR-Zeile(n)") no longer matches, so it lights back
+// up on its own without needing a time-based re-alarm.
+let acknowledgedAlerts = JSON.parse(localStorage.getItem('acknowledgedAlerts') || '[]');
 
 function updateAlerts(s) {
   const alerts = [];
@@ -650,11 +657,14 @@ function updateAlerts(s) {
     }
   }
   currentAlerts = alerts;
-  alertsBtn.classList.toggle('has-alerts', alerts.length > 0);
-  alertsBtn.dataset.count = alerts.length;
-  alertsBtn.title = alerts.length
-    ? `${alerts.length} Warnung(en) -- klicken zum Anzeigen`
-    : 'Keine aktuellen Fehler oder Warnungen';
+  const unseen = alerts.filter(a => !acknowledgedAlerts.includes(a.text));
+  alertsBtn.classList.toggle('has-alerts', unseen.length > 0);
+  alertsBtn.dataset.count = unseen.length;
+  alertsBtn.title = !alerts.length
+    ? 'Keine aktuellen Fehler oder Warnungen'
+    : unseen.length
+    ? `${unseen.length} neue Warnung(en) -- klicken zum Anzeigen`
+    : `${alerts.length} Warnung(en) (bereits gesehen) -- klicken zum Anzeigen`;
 }
 
 alertsBtn.onclick = () => {
@@ -662,6 +672,10 @@ alertsBtn.onclick = () => {
     showToast('Keine aktuellen Fehler oder Warnungen.', 'ok');
     return;
   }
+  acknowledgedAlerts = currentAlerts.map(a => a.text);
+  localStorage.setItem('acknowledgedAlerts', JSON.stringify(acknowledgedAlerts));
+  alertsBtn.classList.remove('has-alerts');
+  alertsBtn.dataset.count = 0;
   const modal = openModal(`
     <p>Aktuelle Fehler/Warnungen:</p>
     <ul class="alerts-list"></ul>
