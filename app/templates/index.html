@@ -219,6 +219,9 @@
       <input id="s-page-size" type="number" min="100" max="20000" step="100">
     </div>
     <div class="field">
+      <label class="check"><input type="checkbox" id="s-export-gzip"> Exportierte Datei komprimieren (.gz)</label>
+    </div>
+    <div class="field">
       <label class="check"><input type="checkbox" id="s-paste-custom"> Eigene Paste-Instanz verwenden</label>
       <div id="s-paste-custom-fields" style="display:none; margin-top:8px;">
         <label for="s-paste-upload">Paste-Upload-URL</label>
@@ -419,6 +422,18 @@ sortToggleBtn.onclick = () => {
   applySortTitle();
   render(lastLines);
 };
+
+// ---- Export-Kompression (.gz) ----
+// A personal browsing preference (like sort order/theme above), not a
+// server-side setting -- purely affects what the "Exportieren" button
+// requests, so localStorage fits better than a runtime_settings round
+// trip to the server. Paste upload already gzips the HTTP transfer itself
+// regardless of this (see api_export_paste in web.py) -- unrelated,
+// unaffected by this checkbox.
+const EXPORT_GZIP_KEY = 'openwb-logger-export-gzip';
+const exportGzipEl = document.getElementById('s-export-gzip');
+exportGzipEl.checked = localStorage.getItem(EXPORT_GZIP_KEY) === 'true';
+exportGzipEl.onchange = () => localStorage.setItem(EXPORT_GZIP_KEY, exportGzipEl.checked);
 let lastLines = [];
 
 // ---- Design (hell/dunkel) ----
@@ -748,7 +763,9 @@ function exportParams() {
 }
 
 document.getElementById('export').onclick = () => {
-  window.open('/api/logs/export?' + exportParams().toString(), '_blank');
+  const p = exportParams();
+  if (exportGzipEl.checked) p.set('gzip', 'true');
+  window.open('/api/logs/export?' + p.toString(), '_blank');
 };
 
 const pasteExportBtn = document.getElementById('paste-export');

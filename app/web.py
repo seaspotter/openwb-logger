@@ -9,7 +9,7 @@ from pathlib import Path
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
-from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, Response
 from fastapi.templating import Jinja2Templates
 from starlette.requests import Request
 
@@ -47,7 +47,8 @@ def _filters(
         params.extend(values)
         placeholders = [f"${i}" for i in range(start, len(params) + 1)]
         parts = clause.split("{}")
-        assert len(parts) == len(placeholders) + 1, f"clause has wrong number of {{}} markers: {clause!r}"
+        assert len(parts) == len(placeholders) + 1, \
+            f"clause has wrong number of {{}} markers: {clause!r}"
         result = parts[0]
         for part, placeholder in zip(parts[1:], placeholders):
             result += placeholder + part
@@ -207,7 +208,9 @@ async def _export_body(pool, day, search, level, source, from_, to) -> str:
     doesn't correspond to anything visible once paging is cursor-based;
     see CHANGELOG)."""
     where, params = _filters(day, search, level, source, from_, to)
-    rows = await pool.fetch(f"SELECT {RAW_EXPR} AS raw FROM log_lines {where} ORDER BY ts, id", *params)
+    rows = await pool.fetch(
+        f"SELECT {RAW_EXPR} AS raw FROM log_lines {where} ORDER BY ts, id", *params
+    )
     return "\n".join(r["raw"] for r in rows) + ("\n" if rows else "")
 
 
@@ -219,12 +222,24 @@ async def api_export(
     source: str | None = None,
     from_: datetime | None = Query(default=None, alias="from"),
     to: datetime | None = None,
+    gzip_: bool = Query(default=False, alias="gzip"),
 ):
+    """`gzip_` (not `gzip`, to avoid shadowing the `gzip` module import used
+    below) opts into a real .gz file the browser saves compressed -- not
+    `Content-Encoding: gzip`, which browsers transparently decompress
+    before saving, defeating the point of asking for a smaller download."""
     pool = get_pool()
     body = await _export_body(pool, day, search, level, source, from_, to)
+    filename = _export_filename(source, day)
+    if gzip_:
+        return Response(
+            gzip.compress(body.encode("utf-8")),
+            media_type="application/gzip",
+            headers={"Content-Disposition": f'attachment; filename="{filename}.gz"'},
+        )
     return PlainTextResponse(
         body,
-        headers={"Content-Disposition": f'attachment; filename="{_export_filename(source, day)}"'},
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 

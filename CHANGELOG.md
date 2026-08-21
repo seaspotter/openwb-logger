@@ -6,6 +6,16 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
+### Added
+- "Exportierte Datei komprimieren (.gz)" checkbox in the settings panel —
+  a browser-local preference (like theme/sort order, not a server-side
+  setting), so "Exportieren" downloads a real `.gz` file instead of plain
+  text. Sends `Content-Type: application/gzip` rather than
+  `Content-Encoding: gzip`, since the latter is transparently decompressed
+  by the browser before saving, defeating the point of a smaller
+  download. Unrelated to "An Paste senden", which already always gzips
+  its upload regardless of this setting.
+
 ### Changed
 - `docker-compose.yml`'s `app` service no longer needs a hand-assembled
   `DATABASE_URL` -- it now gets the same `POSTGRES_PASSWORD` variable the
