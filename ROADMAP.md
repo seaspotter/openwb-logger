@@ -8,7 +8,7 @@ open an issue or just start working if something here matters to you.
 - [x] Poll openWB's `main.log`, gap-free merge with rotation recovery
 - [x] Structured storage in TimescaleDB, native retention policy
 - [x] Web UI: browse by day, live-tail, filter, search, export
-- [x] Multi log-source support (chargelog, mqtt, smarthome, soc, ...)
+- [x] Multi log-source support (chargelog, mqtt, soc, internal chargepoint)
 - [x] Runtime-configurable settings (location, sources, retention,
       interval) via the UI, no restart, no environment variables
 - [x] Light/dark theme (system preference on first visit, then a plain

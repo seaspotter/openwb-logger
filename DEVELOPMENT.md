@@ -95,10 +95,11 @@ staging) openWB.
 
 ## Adding a new log source
 
-openWB's other ramdisk logs (`chargelog`, `mqtt`, `smarthome`, `soc`,
-`internal_chargepoint`, `garbage_collector`, `tracemalloc`) are already in
-the catalog and can be enabled from the settings panel without any code
-change. To add one openWB introduces later:
+openWB's other ramdisk logs (`chargelog`, `mqtt`, `soc`,
+`internal_chargepoint`, `forecast`) are already in the catalog and can be
+enabled from the settings panel without any code change. `forecast` is
+speculative — taken from an open, unmerged openWB PR; correct or remove
+it once that lands for real. To add one openWB introduces later:
 
 1. Add an entry to `CATALOG` in `app/log_catalog.py` with its filename
    stem, format (`"detailed"` or `"short"` — check openWB's

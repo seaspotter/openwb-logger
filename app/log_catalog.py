@@ -40,12 +40,6 @@ CATALOG: dict[str, LogSource] = {
         "backup_count": 1,
         "default_enabled": False,
     },
-    "smarthome": {
-        "label": "Smarthome log",
-        "format": "short",
-        "backup_count": 1,
-        "default_enabled": False,
-    },
     "soc": {
         "label": "SoC log",
         "format": "detailed",
@@ -58,15 +52,13 @@ CATALOG: dict[str, LogSource] = {
         "backup_count": 1,
         "default_enabled": False,
     },
-    "garbage_collector": {
-        "label": "Garbage collector log",
-        "format": "short",
-        "backup_count": 1,
-        "default_enabled": False,
-    },
-    "tracemalloc": {
-        "label": "Tracemalloc log",
-        "format": "short",
+    # Not in any released openWB version yet -- taken from
+    # openWB/core PR #3782 (open, not merged, as of writing). Update this
+    # entry (or remove it) once that lands for real, in case anything
+    # changes before merge.
+    "forecast": {
+        "label": "Forecast log",
+        "format": "detailed",
         "backup_count": 1,
         "default_enabled": False,
     },

@@ -55,6 +55,28 @@ what that means in practice for this project.
   (system preference only decides the very first, pre-`localStorage` load).
 
 ### Changed
+- Log catalog trimmed to what's actually wanted: `main`, `chargelog`,
+  `mqtt`, `soc`, `internal_chargepoint`. Dropped `smarthome`,
+  `garbage_collector`, `tracemalloc` entirely (not just default-disabled)
+  — anyone who had one of those enabled just has it silently stop being
+  polled, their existing rows are untouched. Added `forecast` ahead of
+  time (default disabled) for an openWB log that doesn't exist in any
+  released version yet — taken from the real, currently-open
+  `openWB/core` PR #3782, not guessed.
+- Source selection is always exactly one source now, never "all combined"
+  — the "Alle Quellen" option is gone, and the dropdown defaults to
+  `main` (falling back to whatever's enabled if `main` isn't). Blending
+  multiple sources' lines together in one interleaved view was more
+  confusing than useful.
+- Paste settings simplified: the upload/view URL fields are hidden by
+  default behind a new "Eigene Paste-Instanz verwenden" checkbox, so the
+  common case (using openWB's own instance) shows nothing to configure at
+  all. Checking it reveals the same two fields as before for pointing at
+  a different instance.
+- New logo: green "log lines" glyph (three bars) instead of the previous
+  blue ">_" terminal-prompt mark — more literally about what this tool
+  actually does (log viewing), per feedback that the old one "wasn't
+  perfect."
 - TimescaleDB moved from Postgres 16 to 18 (newest major version it
   currently ships images for; Postgres has no LTS concept, every major
   gets an equal 5-year support window — pg18's runs to Nov 2030 vs.

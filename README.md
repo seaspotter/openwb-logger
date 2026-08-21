@@ -10,8 +10,8 @@ filter, search, and export it — light or dark, your call.
 ## Features
 
 - **Polls openWB's live logs over plain HTTP** — `main.log` by default,
-  optionally any of openWB's other ramdisk logs (chargelog, mqtt,
-  smarthome, soc, ...) — on a configurable interval.
+  optionally any of openWB's other ramdisk logs (chargelog, mqtt, soc,
+  internal chargepoint) — on a configurable interval.
 - **Gap-free merging**: each poll only stores lines it hasn't seen yet. If
   a rotation happens between two polls, it automatically falls back to
   openWB's own rotated backups (`main.log.1` etc.) to recover the lines

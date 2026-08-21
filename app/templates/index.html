@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <title>openWB Logger</title>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%232563eb'/%3E%3Cpath d='M7 7l6 5-6 5' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cline x1='13' y1='17' x2='17' y2='17' stroke='white' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%2316a34a'/%3E%3Cline x1='6' y1='8' x2='18' y2='8' stroke='white' stroke-width='2.4' stroke-linecap='round'/%3E%3Cline x1='6' y1='12' x2='15' y2='12' stroke='white' stroke-width='2.4' stroke-linecap='round'/%3E%3Cline x1='6' y1='16' x2='17' y2='16' stroke='white' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E">
 <style>
   :root {
     --bg: #f5f6f8; --panel: #ffffff; --border: #d8dbe2;
@@ -40,7 +40,10 @@
   .brand { display: flex; align-items: center; gap: 8px; margin-right: 8px; }
   .brand-icon { display: flex; flex-shrink: 0; }
   header h1 { font-size: 17px; margin: 0 12px 0 0; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; }
-  .brand-mark { font-weight: 700; color: var(--accent); }
+  /* Fixed green, not var(--accent) (blue, used for interactive elements
+     throughout) -- this is the brand mark, matching the logo's own color,
+     not a UI accent. */
+  .brand-mark { font-weight: 700; color: #16a34a; }
   select, input[type=text], input[type=number], button {
     background: var(--panel); color: var(--text); border: 1px solid var(--border);
     border-radius: 6px; padding: 6px 8px; font-size: 13px;
@@ -129,14 +132,15 @@
   <div class="brand">
     <span class="brand-icon" aria-hidden="true">
       <svg width="22" height="22" viewBox="0 0 24 24">
-        <rect width="24" height="24" rx="6" fill="#2563eb"/>
-        <path d="M7 7l6 5-6 5" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
-        <line x1="13" y1="17" x2="17" y2="17" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>
+        <rect width="24" height="24" rx="6" fill="#16a34a"/>
+        <line x1="6" y1="8" x2="18" y2="8" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>
+        <line x1="6" y1="12" x2="15" y2="12" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>
+        <line x1="6" y1="16" x2="17" y2="16" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>
       </svg>
     </span>
     <h1><span class="brand-mark">openWB</span> Logger</h1>
   </div>
-  <select id="source"><option value="">Alle Quellen</option></select>
+  <select id="source"></select>
   <select id="day"></select>
   <span class="range-group" title="Zeitraum (überschreibt die Tagesauswahl)">
     Zeitraum <input id="range-from" type="datetime-local">
@@ -197,12 +201,13 @@
       <input id="s-page-size" type="number" min="100" max="20000" step="100">
     </div>
     <div class="field">
-      <label for="s-paste-upload">Paste-Upload-URL</label>
-      <input id="s-paste-upload" type="text" placeholder="https://bytebin.openwb.de/post">
-    </div>
-    <div class="field">
-      <label for="s-paste-view">Paste-Anzeige-URL</label>
-      <input id="s-paste-view" type="text" placeholder="https://paste.openwb.de/">
+      <label class="check"><input type="checkbox" id="s-paste-custom"> Eigene Paste-Instanz verwenden</label>
+      <div id="s-paste-custom-fields" style="display:none; margin-top:8px;">
+        <label for="s-paste-upload">Paste-Upload-URL</label>
+        <input id="s-paste-upload" type="text" placeholder="https://bytebin.openwb.de/post">
+        <label for="s-paste-view" style="margin-top:8px;">Paste-Anzeige-URL</label>
+        <input id="s-paste-view" type="text" placeholder="https://paste.openwb.de/">
+      </div>
     </div>
     <div class="field">
       <label>Version</label>
@@ -300,6 +305,17 @@ function showLink(message, url) {
     if (ev.target.dataset && ev.target.dataset.action === 'close') modal.close();
   });
 }
+
+// Must match DEFAULT_PASTE_UPLOAD_URL/DEFAULT_PASTE_VIEW_URL in
+// app/runtime_settings.py -- used only to decide whether the settings
+// panel's "Eigene Paste-Instanz verwenden" checkbox should start
+// checked/unchecked, not as the actual fallback (the backend owns that).
+const PASTE_DEFAULT_UPLOAD_URL = 'https://bytebin.openwb.de/post';
+const PASTE_DEFAULT_VIEW_URL = 'https://paste.openwb.de/';
+
+document.getElementById('s-paste-custom').onchange = (e) => {
+  document.getElementById('s-paste-custom-fields').style.display = e.target.checked ? 'block' : 'none';
+};
 
 const sourceEl = document.getElementById('source');
 const dayEl = document.getElementById('day');
@@ -442,16 +458,27 @@ function params(extra) {
 }
 
 async function loadSources() {
+  // Always exactly one source, never "all combined" -- interleaving
+  // multiple sources' lines together was more confusing than useful, and
+  // fetching more than one source is already an explicit opt-in per
+  // source in the settings panel, not something the log view should
+  // default to blending.
   const res = await fetch('/api/sources');
   const data = await res.json();
   const previous = sourceEl.value;
-  sourceEl.innerHTML = '<option value="">Alle Quellen</option>';
+  sourceEl.innerHTML = '';
   const byName = Object.fromEntries(data.catalog.map(c => [c.name, c]));
   for (const name of data.enabled) {
     const meta = byName[name];
     sourceEl.add(new Option(meta ? meta.label : name, name));
   }
-  if ([...sourceEl.options].some(o => o.value === previous)) sourceEl.value = previous;
+  if ([...sourceEl.options].some(o => o.value === previous)) {
+    sourceEl.value = previous;
+  } else if (data.enabled.includes('main')) {
+    sourceEl.value = 'main';
+  } else if (sourceEl.options.length) {
+    sourceEl.selectedIndex = 0;
+  }
 }
 
 async function loadDates() {
@@ -686,6 +713,10 @@ async function openSettings() {
   document.getElementById('s-interval').value = data.settings.fetch_interval_seconds;
   document.getElementById('s-retention').value = data.settings.retention_days;
   document.getElementById('s-page-size').value = data.settings.page_size;
+  const usesCustomPaste = data.settings.paste_upload_url !== PASTE_DEFAULT_UPLOAD_URL ||
+    data.settings.paste_view_url !== PASTE_DEFAULT_VIEW_URL;
+  document.getElementById('s-paste-custom').checked = usesCustomPaste;
+  document.getElementById('s-paste-custom-fields').style.display = usesCustomPaste ? 'block' : 'none';
   document.getElementById('s-paste-upload').value = data.settings.paste_upload_url;
   document.getElementById('s-paste-view').value = data.settings.paste_view_url;
 
@@ -710,6 +741,7 @@ backdrop.onclick = (e) => { if (e.target === backdrop) closeSettings(); };
 
 document.getElementById('settings-save').onclick = async () => {
   const enabled = [...document.querySelectorAll('#s-sources input:checked')].map(el => el.value);
+  const useCustomPaste = document.getElementById('s-paste-custom').checked;
   const patch = {
     openwb_base_url: document.getElementById('s-base-url').value,
     openwb_ramdisk_path: document.getElementById('s-ramdisk').value,
@@ -717,8 +749,12 @@ document.getElementById('settings-save').onclick = async () => {
     fetch_interval_seconds: parseInt(document.getElementById('s-interval').value, 10),
     retention_days: parseInt(document.getElementById('s-retention').value, 10),
     page_size: parseInt(document.getElementById('s-page-size').value, 10),
-    paste_upload_url: document.getElementById('s-paste-upload').value,
-    paste_view_url: document.getElementById('s-paste-view').value,
+    paste_upload_url: useCustomPaste
+      ? document.getElementById('s-paste-upload').value
+      : PASTE_DEFAULT_UPLOAD_URL,
+    paste_view_url: useCustomPaste
+      ? document.getElementById('s-paste-view').value
+      : PASTE_DEFAULT_VIEW_URL,
   };
   const res = await fetch('/api/settings', {
     method: 'PUT',
