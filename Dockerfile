@@ -29,6 +29,14 @@ ENV PATH=/root/.local/bin:$PATH
 
 COPY app ./app
 
+# The bind-mounted repo checkout (see docker-compose.yml) is owned by
+# whatever UID/GID it has on the Docker host, not root (which this
+# container runs as) -- without this, git refuses every command against
+# it ("detected dubious ownership in repository at '/app'"), which is
+# exactly why the version display was silently showing "unknown" instead
+# of a real git describe.
+RUN git config --system --add safe.directory /app
+
 # Baked-in fallback for the settings panel's version display (GET
 # /api/update/version) when there's no live git checkout at /app to read a
 # commit from -- e.g. a plain `docker run`/registry-image deployment

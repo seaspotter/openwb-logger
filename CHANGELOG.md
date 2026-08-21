@@ -9,6 +9,14 @@ what that means in practice for this project.
 ## [0.1.0] - 2026-08-21
 
 ### Fixed
+- Settings panel's version display showed "unknown" instead of a real
+  `git describe` version: the Dockerfile's multi-stage rewrite (for the
+  arm/v7 build) dropped the `git config --system --add safe.directory
+  /app` line a previous version had. Without it, git refuses every
+  command against the bind-mounted repo checkout ("detected dubious
+  ownership") since it's owned by the host user, not root (which the
+  container runs as) -- silently falling through to the Docker build-arg
+  fallback meant for when there's no git checkout at all. Re-added.
 - `docker-compose.yml`'s pg18 upgrade shipped with the wrong volume mount
   point and failed to start outright — caught while actually walking
   through the migration. The official Postgres images changed their
