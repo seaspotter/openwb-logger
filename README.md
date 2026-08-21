@@ -39,6 +39,10 @@ filter, search, and export it — light or dark, your call.
 - **Optional in-app self-update**: an "Update" button that pulls the
   latest code and restarts, no Docker socket or image rebuild required for
   pure code changes — see [DEPLOYMENT.md](DEPLOYMENT.md).
+- **MCP server** at `/mcp`, alongside the web UI on the same port —
+  search/tail/export the collected logs from an AI assistant (Claude
+  Desktop, Claude Code, ...) directly, no browser needed. See
+  [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ## How it works
 

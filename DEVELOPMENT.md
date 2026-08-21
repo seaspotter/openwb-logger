@@ -91,6 +91,8 @@ staging) openWB.
 | `app/db.py` | asyncpg pool, schema bootstrap, generic key/value store, retention policy |
 | `app/fetcher.py` | Orchestrates fetch -> merge -> parse -> insert per source; lock-guarded so the scheduled poll and a manual "Jetzt abrufen" click can't race |
 | `app/web.py` | FastAPI routes (all reads/writes are plain parameterized SQL) |
+| `app/updater.py` | Optional in-app self-update (`git pull` + process restart) |
+| `app/mcp_server.py` | MCP server (search/tail/export tools) for AI assistants, mounted at `/mcp` |
 | `app/templates/index.html` | The entire frontend (German UI) — vanilla JS, no build step |
 
 ## Adding a new log source

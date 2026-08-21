@@ -24,12 +24,13 @@ open an issue or just start working if something here matters to you.
       the container logs — a per-source "format warning" in the status
       bar (plus a container log warning) when an unusually high fraction
       of a batch doesn't match the source's declared format
+- [x] MCP server: `search_logs`/`tail_logs`/`export_logs` tools plus an
+      `openwb://sources` resource, mounted at `/mcp` alongside the web UI
+      on the same port (Streamable HTTP transport, `mcp` pinned to its
+      1.x line — 2.x's `starlette` requirement conflicts with `fastapi`)
 
 ## Next
 
-- [ ] MCP server: expose the collected logs (search, tail, export) as MCP
-      tools/resources so an AI assistant (e.g. Claude) can query openWB's
-      history directly instead of through the web UI
 - [ ] Alerts indicator instead of a full webhook/notification system: a
       small "!" button/badge in the UI aggregating current errors/
       warnings (fetch failures, format-mismatch, gaps, ERROR-level lines)

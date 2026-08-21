@@ -59,6 +59,15 @@ variables, no restart. Full picture in `README.md`; details in
   checkout; no Docker socket or image rebuild involved. `self_update_available()`
   gates it off (and hides the UI controls) when that bind mount isn't
   present, e.g. a plain image deployment.
+- `app/mcp_server.py` — MCP server (`search_logs`/`tail_logs`/
+  `export_logs` tools, an `openwb://sources` resource) exposing the same
+  data as the web UI/API to AI assistants, mounted on the same FastAPI
+  app at `/mcp` via the Streamable HTTP transport -- same port, same DB
+  pool, same no-auth trust model as everything else. Pinned to `mcp`'s
+  1.x line in `requirements.txt`: 2.x forces a `starlette` major-version
+  bump incompatible with our `fastapi` pin. Mounting disables the
+  library's own lifespan, so `app/main.py`'s lifespan has to enter
+  `mcp.session_manager.run()` itself.
 - `app/templates/index.html` — the entire frontend, **in German**: vanilla
   JS, no build step, polls the JSON API. Theme is CSS custom properties
   (light default, dark via `prefers-color-scheme` for first-visit only,

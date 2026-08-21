@@ -132,6 +132,23 @@ request can do here is pull whatever's on the configured git remote/branch
 and restart the process — not take over the host. Still, if the UI is
 reachable beyond your LAN, put it behind an authenticated reverse proxy.
 
+## MCP server (for AI assistants)
+
+The app also serves an [MCP](https://modelcontextprotocol.io) server at
+`/mcp` (Streamable HTTP transport), alongside the web UI, on the same
+port. It exposes three tools —`search_logs` (day/range/level/source/text
+filters), `tail_logs` (latest N lines), `export_logs` (everything
+matching a filter, as plain text) — and an `openwb://sources` resource
+listing valid source names, mirroring what the web UI itself can do,
+nothing more. Point any MCP client (Claude Desktop, Claude Code, etc.) at
+`http://<host>:8080/mcp` — consult that client's own docs for how it wants
+an HTTP-transport server configured, since that varies by client.
+
+**No separate authentication** — same no-auth, LAN-trust model as the
+rest of the app (see below). This doesn't expose anything the web
+UI/API didn't already; an MCP client on the same network can read
+exactly what a browser already could.
+
 ## Running behind a reverse proxy
 
 The web UI has **no authentication**, deliberately — this is designed for

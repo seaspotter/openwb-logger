@@ -156,6 +156,23 @@ what that means in practice for this project.
   based on those flags instead of a total.
 
 ### Added
+- MCP server at `/mcp`, mounted on the same FastAPI app as the web UI
+  (same port, same DB pool, same no-auth trust model) via the Streamable
+  HTTP transport — `search_logs` (day/range/level/source/text filters),
+  `tail_logs` (latest N lines), `export_logs` (everything matching a
+  filter, as plain text), and an `openwb://sources` resource listing
+  valid source names. Response sizes are capped much lower than the web
+  UI's own limits (e.g. search defaults to 200 lines, max 2000) since
+  these flow into an LLM's context window, not a browser's DOM. `mcp` is
+  pinned to its 1.x line in `requirements.txt`, not the newer 2.x:
+  2.x forces a `starlette` major-version bump that conflicts with
+  `fastapi==0.115.0`'s own pin — verified by actually resolving both
+  together, not just reading changelogs. Its own compiled dependency
+  (`pydantic-core`, plus `cryptography`/`rpds-py` pulled in
+  transitively) all publish arm/v7 wheels, so no Dockerfile changes were
+  needed for the multi-arch build. Verified end-to-end with the real MCP
+  client library (session handshake, `list_tools`, `call_tool`) against
+  a locally running instance, not just that it constructs without error.
 - Multi-arch image publishing: `.github/workflows/docker-publish.yml`
   builds and pushes `ghcr.io/seaspotter/openwb-logger` for amd64, arm64,
   and arm/v7 on every push to `main` and on version tags. `build: .`
