@@ -6,6 +6,14 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
+### Fixed
+- Settings panel's "Prüfen"/"Update" buttons were only greyed out, not
+  hidden, on a deployment with no bind-mounted git checkout to update in
+  place (e.g. a plain `image:` deployment, as opposed to `build: .`) --
+  permanently dead buttons sitting there regardless of deployment type.
+  Now hidden entirely in that case (`DEPLOYMENT.md` already documented
+  this as the intended behavior; the frontend just didn't match it).
+
 ### Changed
 - Dropped the `raw` column from `log_lines`. For a DETAILED-format line, it
   stored the entire original text -- timestamp, logger, line number,

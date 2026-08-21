@@ -856,13 +856,11 @@ async function loadUpdateInfo() {
   const res = await fetch('/api/update/version');
   const data = await res.json();
   updateCommitEl.textContent = data.current_commit ? data.current_commit : '-';
-  updateBtn.disabled = !data.available;
-  updateCheckBtn.disabled = !data.available;
-  const title = data.available
-    ? ''
-    : 'Kein Git-Checkout unter /app (Bind-Mount fehlt?) — siehe DEPLOYMENT.md';
-  updateBtn.title = title;
-  updateCheckBtn.title = title;
+  // Hidden, not just disabled, when there's no bind-mounted git checkout to
+  // update in place (e.g. a plain `image:` deployment) -- a permanently
+  // dead button is just clutter, not a useful affordance to grey out.
+  updateBtn.style.display = data.available ? '' : 'none';
+  updateCheckBtn.style.display = data.available ? '' : 'none';
 }
 
 updateCheckBtn.onclick = async () => {
