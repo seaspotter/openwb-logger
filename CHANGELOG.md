@@ -6,6 +6,18 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
+### Changed
+- Dropped `arm/v7` from the published multi-arch image (now just amd64 and
+  arm64) -- the v0.1.0 image build for it actually failed in CI (`cffi`,
+  pulled in transitively via `cryptography`, needs `libffi-dev` headers to
+  compile from source there; `asyncpg` has the same no-prebuilt-wheel
+  problem). Every current-gen board (Pi 3/4/5) defaults to a 64-bit OS
+  now, so arm/v7 only helps old 32-bit-only installs, a shrinking
+  population not worth chasing native-header issues for one at a time.
+  The Dockerfile drops back to a single stage as a result -- amd64/arm64
+  both have prebuilt wheels for everything in `requirements.txt`, so the
+  build stage that existed solely to compile for arm/v7 is gone too.
+
 ## [0.1.0] - 2026-08-21
 
 ### Fixed

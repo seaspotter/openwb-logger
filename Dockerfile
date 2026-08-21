@@ -1,17 +1,3 @@
-# Multi-stage so the compiler needed to build asyncpg on linux/arm/v7 (it
-# has no prebuilt wheel for that platform, only amd64/arm64 -- checked
-# against PyPI) doesn't end up in the runtime image. uvicorn's own C
-# extensions (uvloop, httptools, the "standard" extra) are sidestepped
-# entirely instead of compiled: this app doesn't use anything they add,
-# and building them under QEMU emulation for arm/v7 in CI would be slow
-# for no benefit on a low-traffic LAN tool -- see requirements.txt.
-FROM python:3.12-slim AS builder
-WORKDIR /app
-RUN apt-get update && apt-get install -y --no-install-recommends gcc python3-dev \
-    && rm -rf /var/lib/apt/lists/*
-COPY requirements.txt .
-RUN pip install --no-cache-dir --user -r requirements.txt
-
 FROM python:3.12-slim
 
 WORKDIR /app
@@ -24,7 +10,12 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends git tzdata \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /root/.local /root/.local
+# All our dependencies (asyncpg, cffi via cryptography, ...) have prebuilt
+# wheels for amd64 and arm64 -- the two platforms this image targets (see
+# .github/workflows/docker-publish.yml) -- so no compiler/build stage is
+# needed here, unlike when arm/v7 was in the mix.
+COPY requirements.txt .
+RUN pip install --no-cache-dir --user -r requirements.txt
 ENV PATH=/root/.local/bin:$PATH
 
 COPY app ./app
