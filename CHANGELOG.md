@@ -35,6 +35,11 @@ No formal releases yet — entries are grouped by what shipped, not by tag.
   (system preference only decides the very first, pre-`localStorage` load).
 
 ### Changed
+- Branding pass: a small inline-SVG logo (used as both the favicon and a
+  header mark), the header title now reads "openWB Logger" with "openWB"
+  in accent color, and the light/dark toggle is a proper sun/moon icon
+  instead of a single "◐" character (showing the theme currently active,
+  not the one a click switches to).
 - Replaced native browser `confirm()`/`alert()`/`prompt()` (the update
   button's confirmation, paste-upload errors, and the paste link display)
   with in-app toasts and a modal, matching the pattern already used in
