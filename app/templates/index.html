@@ -2,12 +2,13 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<title>openwb-logger</title>
+<title>openWB Logger</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%2316a34a'/%3E%3Cline x1='6' y1='8' x2='18' y2='8' stroke='white' stroke-width='2.4' stroke-linecap='round'/%3E%3Cline x1='6' y1='12' x2='15' y2='12' stroke='white' stroke-width='2.4' stroke-linecap='round'/%3E%3Cline x1='6' y1='16' x2='17' y2='16' stroke='white' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E">
 <style>
   :root {
     --bg: #f5f6f8; --panel: #ffffff; --border: #d8dbe2;
     --text: #1a1d24; --muted: #6b7280; --accent: #2563eb;
-    --debug: #9aa0ab; --info: #1a1d24; --warning: #b45309; --error: #dc2626;
+    --debug: #1e7a42; --info: #1a1d24; --warning: #b45309; --error: #dc2626;
     --mark-bg: #bfdbfe; --mark-text: #0b1d3a;
     --backdrop: rgba(0, 0, 0, 0.35);
   }
@@ -15,7 +16,7 @@
     :root:not([data-theme="light"]) {
       --bg: #0f1115; --panel: #171a21; --border: #2a2e38;
       --text: #d8dbe2; --muted: #8a8f9c; --accent: #4da3ff;
-      --debug: #6b7280; --info: #d8dbe2; --warning: #e0a95c; --error: #e5675f;
+      --debug: #5fbd82; --info: #d8dbe2; --warning: #e0a95c; --error: #e5675f;
       --mark-bg: #4da3ff; --mark-text: #06131f;
       --backdrop: rgba(0, 0, 0, 0.55);
     }
@@ -23,7 +24,7 @@
   :root[data-theme="dark"] {
     --bg: #0f1115; --panel: #171a21; --border: #2a2e38;
     --text: #d8dbe2; --muted: #8a8f9c; --accent: #4da3ff;
-    --debug: #6b7280; --info: #d8dbe2; --warning: #e0a95c; --error: #e5675f;
+    --debug: #5fbd82; --info: #d8dbe2; --warning: #e0a95c; --error: #e5675f;
     --mark-bg: #4da3ff; --mark-text: #06131f;
     --backdrop: rgba(0, 0, 0, 0.55);
   }
@@ -36,24 +37,47 @@
     padding: 10px 16px; border-bottom: 1px solid var(--border);
     display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   }
-  header h1 { font-size: 16px; margin: 0 12px 0 0; font-weight: 600; }
+  .brand { display: flex; align-items: center; gap: 8px; margin-right: 8px; }
+  .brand-icon { display: flex; flex-shrink: 0; }
+  header h1 { font-size: 17px; margin: 0 12px 0 0; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; }
+  /* Fixed green, not var(--accent) (blue, used for interactive elements
+     throughout) -- this is the brand mark, matching the logo's own color,
+     not a UI accent. */
+  .brand-mark { font-weight: 700; color: #16a34a; }
   select, input[type=text], input[type=number], button {
     background: var(--panel); color: var(--text); border: 1px solid var(--border);
     border-radius: 6px; padding: 6px 8px; font-size: 13px;
   }
   input[type=text] { min-width: 200px; }
   input[type=number] { width: 80px; }
+  input[type=datetime-local] { width: 180px; }
+  .range-group { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+  .range-quick { padding: 4px 7px; font-size: 12px; }
   button { cursor: pointer; }
   button:hover { border-color: var(--accent); }
   button:disabled { opacity: 0.5; cursor: default; }
-  button.icon { width: 32px; padding: 6px; text-align: center; }
+  button.icon { width: 32px; padding: 6px; display: inline-flex; align-items: center; justify-content: center; }
+  #alerts-btn { position: relative; color: var(--muted); }
+  #alerts-btn.has-alerts { color: var(--error); border-color: var(--error); }
+  #alerts-btn.has-alerts::after {
+    content: attr(data-count); position: absolute; top: -5px; right: -5px;
+    background: var(--error); color: #fff; font-size: 9px; line-height: 1.4;
+    min-width: 14px; height: 14px; border-radius: 7px; text-align: center;
+  }
+  .alerts-list { list-style: none; margin: 0 0 14px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .alerts-list li { font-size: 13px; padding: 6px 8px; border-radius: 6px; background: var(--bg); }
+  .alerts-list li.error { color: var(--error); }
+  .alerts-list li.warning { color: var(--warning); }
   label.check { display: flex; align-items: center; gap: 5px; font-size: 13px; color: var(--muted); }
   #right-controls { display: flex; align-items: center; gap: 8px; margin-left: auto; }
   main { padding: 10px 16px; }
   #pager { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 13px; color: var(--muted); }
   #log {
     background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
-    height: 70vh; overflow-y: auto; padding: 8px 0; font-family: ui-monospace, Menlo, Consolas, monospace;
+    /* Fills the space left over after header/pager/status, rather than a
+       fixed viewport percentage that leaves a growing gap on tall windows. */
+    height: calc(100vh - 170px); overflow-y: auto; padding: 8px 0;
+    font-family: ui-monospace, Menlo, Consolas, monospace;
     font-size: 12.5px;
   }
   .line { padding: 1px 12px; white-space: pre-wrap; word-break: break-word; }
@@ -84,22 +108,76 @@
   #settings-msg { font-size: 12px; margin-top: 8px; min-height: 16px; }
   #settings-msg.error { color: var(--error); }
   #settings-msg.ok { color: var(--accent); }
+  #update-info { display: flex; align-items: center; gap: 10px; }
+  #update-commit { font-size: 12px; color: var(--muted); font-family: monospace; }
+  #update-msg { font-size: 12px; margin-top: 6px; min-height: 16px; }
+  #update-msg.error { color: var(--error); }
+  #update-msg.ok { color: var(--accent); }
+
+  .modal-overlay {
+    display: flex; position: fixed; inset: 0; background: var(--backdrop);
+    align-items: flex-start; justify-content: center; padding-top: 8vh; z-index: 20;
+  }
+  .modal-card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    width: min(380px, 92vw); padding: 18px 20px;
+  }
+  .modal-card p { margin: 0 0 14px; font-size: 14px; color: var(--text); }
+  .modal-card input[type=text] { width: 100%; margin-bottom: 14px; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+  .toast-container {
+    position: fixed; bottom: 18px; right: 18px; z-index: 30;
+    display: flex; flex-direction: column; gap: 8px; max-width: 340px;
+  }
+  .toast {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 14px; font-size: 13px; color: var(--text); cursor: pointer;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  }
+  .toast.error { border-color: var(--error); color: var(--error); }
+  .toast.ok { border-color: var(--accent); }
 </style>
 </head>
 <body>
 <header>
-  <h1>openwb-logger</h1>
-  <select id="source"><option value="">Alle Quellen</option></select>
+  <div class="brand">
+    <span class="brand-icon" aria-hidden="true">
+      <svg width="22" height="22" viewBox="0 0 24 24">
+        <rect width="24" height="24" rx="6" fill="#16a34a"/>
+        <line x1="6" y1="8" x2="18" y2="8" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>
+        <line x1="6" y1="12" x2="15" y2="12" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>
+        <line x1="6" y1="16" x2="17" y2="16" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>
+      </svg>
+    </span>
+    <h1><span class="brand-mark">openWB</span> Logger</h1>
+  </div>
+  <select id="source"></select>
   <select id="day"></select>
+  <span class="range-group" title="Zeitraum (überschreibt die Tagesauswahl)">
+    Zeitraum <input id="range-from" type="datetime-local">
+    bis <input id="range-to" type="datetime-local">
+    <button id="range-clear" class="icon" title="Zeitraum zurücksetzen" disabled>&times;</button>
+    <button type="button" class="range-quick" data-minutes="15">15 Min</button>
+    <button type="button" class="range-quick" data-minutes="30">30 Min</button>
+    <button type="button" class="range-quick" data-minutes="60">1 Std</button>
+    <button type="button" class="range-quick" data-minutes="120">2 Std</button>
+  </span>
   <select id="level"><option value="">Alle Level</option></select>
   <input id="search" type="text" placeholder="Suchen...">
   <label class="check"><input type="checkbox" id="live" checked> Live</label>
   <div id="right-controls">
-    von <input id="from" type="number" value="0" min="0">
-    bis <input id="to" type="number" placeholder="Ende">
     <button id="export">Exportieren</button>
+    <button id="paste-export">An Paste senden</button>
+    <button id="sort-toggle" class="icon" title="Sortierung umkehren">&#8645;</button>
     <button id="fetch-now">Jetzt abrufen</button>
-    <button id="theme-toggle" class="icon" title="Design wechseln">&#9680;</button>
+    <button id="alerts-btn" class="icon" title="Keine aktuellen Fehler oder Warnungen">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3 2 20h20L12 3z"/>
+        <line x1="12" y1="10" x2="12" y2="14"/>
+        <line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+    </button>
+    <button id="theme-toggle" class="icon" title="Design wechseln"></button>
     <button id="settings-open" class="icon" title="Einstellungen">&#9881;</button>
   </div>
 </header>
@@ -136,6 +214,28 @@
       <label for="s-retention">Aufbewahrung (Tage)</label>
       <input id="s-retention" type="number" min="1">
     </div>
+    <div class="field">
+      <label for="s-page-size">Zeilen pro Seite</label>
+      <input id="s-page-size" type="number" min="100" max="20000" step="100">
+    </div>
+    <div class="field">
+      <label class="check"><input type="checkbox" id="s-paste-custom"> Eigene Paste-Instanz verwenden</label>
+      <div id="s-paste-custom-fields" style="display:none; margin-top:8px;">
+        <label for="s-paste-upload">Paste-Upload-URL</label>
+        <input id="s-paste-upload" type="text" placeholder="https://bytebin.openwb.de/post">
+        <label for="s-paste-view" style="margin-top:8px;">Paste-Anzeige-URL</label>
+        <input id="s-paste-view" type="text" placeholder="https://paste.openwb.de/">
+      </div>
+    </div>
+    <div class="field">
+      <label>Version</label>
+      <div id="update-info">
+        <span id="update-commit">-</span>
+        <button id="update-check" type="button">Prüfen</button>
+        <button id="update-btn" type="button">Update</button>
+      </div>
+      <div id="update-msg"></div>
+    </div>
     <div id="settings-msg"></div>
     <div class="actions">
       <button id="settings-cancel">Abbrechen</button>
@@ -145,6 +245,96 @@
 </div>
 
 <script>
+// ---- Toasts & confirm/link modal (replaces native alert()/confirm()/prompt(),
+// which open as separate browser-chrome popups instead of staying in-app --
+// same pattern used in knxpilot) ----
+function getToastContainer() {
+  let el = document.querySelector('.toast-container');
+  if (!el) {
+    el = document.createElement('div');
+    el.className = 'toast-container';
+    document.body.appendChild(el);
+  }
+  return el;
+}
+
+function showToast(message, type = 'info', { sticky = false } = {}) {
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.textContent = message;
+  toast.onclick = () => toast.remove();
+  getToastContainer().appendChild(toast);
+  if (!sticky) setTimeout(() => toast.remove(), 4000);
+  return toast;
+}
+
+// onClose fires whenever the modal closes for ANY reason (Escape, backdrop
+// click, or the caller's own close()) -- callers that need to settle a
+// promise on every close path, not just their own buttons, should use it,
+// guarding against double-settling since it also fires after close().
+function openModal(bodyHtml, { onClose } = {}) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `<div class="modal-card">${bodyHtml}</div>`;
+  document.body.appendChild(overlay);
+  const close = () => {
+    document.removeEventListener('keydown', onKeydown);
+    overlay.remove();
+    if (onClose) onClose();
+  };
+  const onKeydown = (ev) => { if (ev.key === 'Escape') close(); };
+  overlay.addEventListener('click', (ev) => { if (ev.target === overlay) close(); });
+  document.addEventListener('keydown', onKeydown);
+  return { overlay, close };
+}
+
+function showConfirm(message) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const modal = openModal(`
+      <p></p>
+      <div class="modal-actions">
+        <button data-action="cancel">Abbrechen</button>
+        <button data-action="confirm">OK</button>
+      </div>`, {
+      onClose: () => { if (!settled) { settled = true; resolve(false); } },
+    });
+    modal.overlay.querySelector('p').textContent = message;
+    modal.overlay.addEventListener('click', (ev) => {
+      const action = ev.target.dataset && ev.target.dataset.action;
+      if (action === 'confirm') { settled = true; resolve(true); modal.close(); }
+      else if (action === 'cancel') modal.close();
+    });
+  });
+}
+
+function showLink(message, url) {
+  const modal = openModal(`
+    <p></p>
+    <input type="text" readonly>
+    <div class="modal-actions">
+      <button data-action="close">Schließen</button>
+    </div>`);
+  modal.overlay.querySelector('p').textContent = message;
+  const input = modal.overlay.querySelector('input');
+  input.value = url;
+  input.onclick = () => input.select();
+  modal.overlay.addEventListener('click', (ev) => {
+    if (ev.target.dataset && ev.target.dataset.action === 'close') modal.close();
+  });
+}
+
+// Must match DEFAULT_PASTE_UPLOAD_URL/DEFAULT_PASTE_VIEW_URL in
+// app/runtime_settings.py -- used only to decide whether the settings
+// panel's "Eigene Paste-Instanz verwenden" checkbox should start
+// checked/unchecked, not as the actual fallback (the backend owns that).
+const PASTE_DEFAULT_UPLOAD_URL = 'https://bytebin.openwb.de/post';
+const PASTE_DEFAULT_VIEW_URL = 'https://paste.openwb.de/';
+
+document.getElementById('s-paste-custom').onchange = (e) => {
+  document.getElementById('s-paste-custom-fields').style.display = e.target.checked ? 'block' : 'none';
+};
+
 const sourceEl = document.getElementById('source');
 const dayEl = document.getElementById('day');
 const levelEl = document.getElementById('level');
@@ -153,24 +343,110 @@ const liveEl = document.getElementById('live');
 const logEl = document.getElementById('log');
 const rangeEl = document.getElementById('range');
 const statusEl = document.getElementById('status');
-const LIMIT = 1000;
-let offset = 0;
+const rangeFromEl = document.getElementById('range-from');
+const rangeToEl = document.getElementById('range-to');
+const rangeClearBtn = document.getElementById('range-clear');
+let LIMIT = 1000; // overwritten by the page_size setting once loaded, see init()/openSettings()
+// Zeitraum mode fetches the whole selected window in one request instead of
+// paging -- the user already bounded it by picking from/to, so 1000-at-a-
+// time would just defeat the point (see CHANGELOG). Capped, not unbounded,
+// so an accidentally huge window (e.g. picking days instead of hours by
+// mistake) can't hang the browser rendering hundreds of thousands of DOM
+// nodes -- see the truncation notice in load() when this is exceeded.
+const RANGE_LIMIT = 100000;
+// Keyset (cursor) pagination by (ts, id) instead of a numeric offset -- see
+// CHANGELOG. `pendingCursor` describes the next /api/logs request: null
+// means "start from the beginning"; {after} / {before} continue from the
+// boundary of whatever's currently on screen (updated by render() on every
+// load, from firstShown/lastShown).
+let pendingCursor = null;
+let firstShown = null, lastShown = null;
 let liveTimer = null;
 
-// ---- Design (hell/dunkel) ----
-const THEME_KEY = 'openwb-logger-theme';
-function applyTheme(mode) {
-  if (mode === 'system') document.documentElement.removeAttribute('data-theme');
-  else document.documentElement.setAttribute('data-theme', mode);
+// ---- Zeitraum (überschreibt die Tagesauswahl, solange gesetzt) ----
+function hasCustomRange() {
+  return !!(rangeFromEl.value || rangeToEl.value);
 }
-function cycleTheme() {
-  const current = localStorage.getItem(THEME_KEY) || 'system';
-  const next = { system: 'light', light: 'dark', dark: 'system' }[current];
+function updateRangeUI() {
+  const active = hasCustomRange();
+  dayEl.disabled = active;
+  liveEl.disabled = active;
+  if (active) liveEl.checked = false;
+  rangeClearBtn.disabled = !active;
+  document.getElementById('prev').disabled = active;
+  document.getElementById('next').disabled = active;
+}
+rangeFromEl.onchange = rangeToEl.onchange = () => { pendingCursor = null; updateRangeUI(); load(); };
+rangeClearBtn.onclick = () => {
+  rangeFromEl.value = '';
+  rangeToEl.value = '';
+  pendingCursor = null;
+  updateRangeUI();
+  load();
+};
+
+// Local wall-clock formatting (no timezone conversion, matching how the
+// rest of the app treats timestamps -- see CLAUDE.md), in the format
+// <input type="datetime-local"> expects.
+function formatLocalDateTime(date) {
+  const pad = n => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
+    `T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+document.querySelectorAll('.range-quick').forEach(btn => {
+  btn.onclick = () => {
+    const minutes = parseInt(btn.dataset.minutes, 10);
+    const now = new Date();
+    rangeToEl.value = formatLocalDateTime(now);
+    rangeFromEl.value = formatLocalDateTime(new Date(now.getTime() - minutes * 60000));
+    pendingCursor = null;
+    updateRangeUI();
+    load();
+  };
+});
+
+// ---- Sortierung (älteste/neueste zuerst) ----
+const SORT_KEY = 'openwb-logger-sort-desc';
+let sortDesc = localStorage.getItem(SORT_KEY) === 'true';
+const sortToggleBtn = document.getElementById('sort-toggle');
+function applySortTitle() {
+  sortToggleBtn.title = sortDesc ? 'Neueste zuerst (Klick: älteste zuerst)' : 'Älteste zuerst (Klick: neueste zuerst)';
+}
+applySortTitle();
+sortToggleBtn.onclick = () => {
+  sortDesc = !sortDesc;
+  localStorage.setItem(SORT_KEY, sortDesc);
+  applySortTitle();
+  render(lastLines);
+};
+let lastLines = [];
+
+// ---- Design (hell/dunkel) ----
+// A plain light/dark toggle, not a system/light/dark cycle: the previous
+// 3-way cycle meant the first click (system -> light) was often a visual
+// no-op whenever the OS was already in light mode, making the button look
+// broken ("only works on the second click").
+const THEME_KEY = 'openwb-logger-theme';
+// Icon shows the theme currently active (sun = light, moon = dark), not
+// the one a click switches to.
+const SUN_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+  'stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/>' +
+  '<path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
+const MOON_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">' +
+  '<path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z"/></svg>';
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  document.getElementById('theme-toggle').innerHTML = theme === 'dark' ? MOON_ICON : SUN_ICON;
+}
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme') || 'light';
+  const next = current === 'light' ? 'dark' : 'light';
   localStorage.setItem(THEME_KEY, next);
   applyTheme(next);
 }
-applyTheme(localStorage.getItem(THEME_KEY) || 'system');
-document.getElementById('theme-toggle').onclick = cycleTheme;
+applyTheme(localStorage.getItem(THEME_KEY) ||
+  (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+document.getElementById('theme-toggle').onclick = toggleTheme;
 
 // ---- Log-Ansicht ----
 function escapeHtml(s) {
@@ -187,7 +463,12 @@ function highlight(raw, term) {
 function params(extra) {
   const p = new URLSearchParams();
   if (sourceEl.value) p.set('source', sourceEl.value);
-  if (dayEl.value && dayEl.value !== '__today__') p.set('day', dayEl.value);
+  if (hasCustomRange()) {
+    if (rangeFromEl.value) p.set('from', rangeFromEl.value);
+    if (rangeToEl.value) p.set('to', rangeToEl.value);
+  } else if (dayEl.value && dayEl.value !== '__today__') {
+    p.set('day', dayEl.value);
+  }
   if (levelEl.value) p.set('level', levelEl.value);
   if (searchEl.value) p.set('search', searchEl.value);
   for (const k in extra) p.set(k, extra[k]);
@@ -195,16 +476,27 @@ function params(extra) {
 }
 
 async function loadSources() {
+  // Always exactly one source, never "all combined" -- interleaving
+  // multiple sources' lines together was more confusing than useful, and
+  // fetching more than one source is already an explicit opt-in per
+  // source in the settings panel, not something the log view should
+  // default to blending.
   const res = await fetch('/api/sources');
   const data = await res.json();
   const previous = sourceEl.value;
-  sourceEl.innerHTML = '<option value="">Alle Quellen</option>';
+  sourceEl.innerHTML = '';
   const byName = Object.fromEntries(data.catalog.map(c => [c.name, c]));
   for (const name of data.enabled) {
     const meta = byName[name];
     sourceEl.add(new Option(meta ? meta.label : name, name));
   }
-  if ([...sourceEl.options].some(o => o.value === previous)) sourceEl.value = previous;
+  if ([...sourceEl.options].some(o => o.value === previous)) {
+    sourceEl.value = previous;
+  } else if (data.enabled.includes('main')) {
+    sourceEl.value = 'main';
+  } else if (sourceEl.options.length) {
+    sourceEl.selectedIndex = 0;
+  }
 }
 
 async function loadDates() {
@@ -228,24 +520,72 @@ async function loadLevels() {
   if ([...levelEl.options].some(o => o.value === previous)) levelEl.value = previous;
 }
 
-function render(lines, total, off) {
+function render(lines) {
+  lastLines = lines;
+  if (lines.length) {
+    firstShown = { ts: lines[0].ts, id: lines[0].id };
+    lastShown = { ts: lines[lines.length - 1].ts, id: lines[lines.length - 1].id };
+  } else {
+    firstShown = null;
+    lastShown = null;
+  }
   const term = searchEl.value;
-  logEl.innerHTML = lines.map(l =>
+  const ordered = sortDesc ? [...lines].reverse() : lines;
+  logEl.innerHTML = ordered.map(l =>
     `<div class="line ${l.level || ''}">${highlight(l.raw, term)}</div>`
   ).join('');
-  rangeEl.textContent = total === 0 ? 'keine Zeilen' : `${off + 1}-${off + lines.length} von ${total}`;
+  rangeEl.textContent = lines.length === 0 ? 'keine Zeilen' : `${lines.length} Zeilen`;
 }
 
 async function load() {
-  const isToday = dayEl.value === '__today__';
+  const customRange = hasCustomRange();
+  const isToday = !customRange && dayEl.value === '__today__';
   const today = new Date().toISOString().slice(0, 10);
-  const extra = isToday ? { day: today, tail: 'true', limit: LIMIT } : { offset, limit: LIMIT };
+  const liveTail = isToday && liveEl.checked;
+
+  const extra = { limit: customRange ? RANGE_LIMIT : LIMIT };
+  if (liveTail) {
+    extra.day = today;
+    extra.tail = 'true';
+  } else if (customRange) {
+    // Always a fresh, unbounded-by-cursor fetch -- Zeitraum has no paging
+    // of its own (see RANGE_LIMIT above), regardless of whatever cursor a
+    // previous day/range view happened to leave in `pendingCursor`.
+  } else {
+    extra.day = isToday ? today : dayEl.value;
+    if (pendingCursor?.after) {
+      extra.after_ts = pendingCursor.after.ts;
+      extra.after_id = pendingCursor.after.id;
+    } else if (pendingCursor?.before) {
+      extra.before_ts = pendingCursor.before.ts;
+      extra.before_id = pendingCursor.before.id;
+    }
+  }
   const p = params(extra);
   const res = await fetch('/api/logs?' + p.toString());
   const data = await res.json();
-  offset = data.offset;
-  render(data.lines, data.total, data.offset);
-  if (isToday && liveEl.checked) logEl.scrollTop = logEl.scrollHeight;
+  render(data.lines);
+
+  const prevBtn = document.getElementById('prev');
+  const nextBtn = document.getElementById('next');
+  if (customRange) {
+    prevBtn.disabled = true;
+    nextBtn.disabled = true;
+    if (data.has_more_after) {
+      rangeEl.textContent += ` — auf die ersten ${RANGE_LIMIT} begrenzt, Zeitraum eingrenzen für den Rest`;
+    }
+  } else if (liveTail) {
+    prevBtn.disabled = !data.has_more_before;
+    nextBtn.disabled = true;
+  } else {
+    prevBtn.disabled = !data.has_more_before;
+    nextBtn.disabled = !data.has_more_after;
+  }
+
+  document.getElementById('export').disabled = liveTail;
+  pasteExportBtn.disabled = liveTail;
+
+  if (liveTail) logEl.scrollTop = sortDesc ? 0 : logEl.scrollHeight;
 }
 
 async function loadStatus() {
@@ -262,34 +602,150 @@ async function loadStatus() {
     `<span>Aufbewahrung: ${s.retention_days}d</span>` +
     `<span>Zeilen: ${s.total_rows}</span>` +
     `<span>Letzter Abruf: ${s.last_fetch_at || '-'}</span>` +
-    (s.last_error ? `<span style="color:var(--error)">Fehler: ${s.last_error}</span>` : '') +
     extra;
+  updateAlerts(s);
 }
+
+// ---- Warnungen/Fehler ("!" Button) ----
+// Consolidates what used to be scattered inline spans in the status bar
+// (Fehler/Nicht erreichbar/Format-Warnung) into one quiet, on-demand
+// place to check -- no popups, badge only shows up when there's actually
+// something to see. Also the only place that surfaces actual ERROR-level
+// *log content* (recent_error_lines), not just fetch/parse health.
+const alertsBtn = document.getElementById('alerts-btn');
+let currentAlerts = [];
+
+function updateAlerts(s) {
+  const alerts = [];
+  if (s.last_error) {
+    alerts.push({ type: 'error', text: `Abruf fehlgeschlagen: ${s.last_error}` });
+  }
+  for (const [name, v] of Object.entries(s.sources)) {
+    if (v.last_error) {
+      alerts.push({ type: 'error', text: `${name}: nicht erreichbar (${v.last_error})` });
+    }
+    if (v.format_mismatch_suspected) {
+      alerts.push({ type: 'warning', text: `${name}: viele Zeilen passen nicht zum erwarteten Format` });
+    }
+    if (v.total_gaps_detected > v.total_gaps_recovered) {
+      alerts.push({
+        type: 'warning',
+        text: `${name}: ${v.total_gaps_detected - v.total_gaps_recovered} Lücke(n) nicht wiederhergestellt -- Zeilen wahrscheinlich verloren`,
+      });
+    }
+    if (v.recent_error_lines > 0) {
+      alerts.push({ type: 'warning', text: `${name}: ${v.recent_error_lines} ERROR-Zeile(n) in der letzten Stunde` });
+    }
+  }
+  currentAlerts = alerts;
+  alertsBtn.classList.toggle('has-alerts', alerts.length > 0);
+  alertsBtn.dataset.count = alerts.length;
+  alertsBtn.title = alerts.length
+    ? `${alerts.length} Warnung(en) -- klicken zum Anzeigen`
+    : 'Keine aktuellen Fehler oder Warnungen';
+}
+
+alertsBtn.onclick = () => {
+  if (!currentAlerts.length) {
+    showToast('Keine aktuellen Fehler oder Warnungen.', 'ok');
+    return;
+  }
+  const modal = openModal(`
+    <p>Aktuelle Fehler/Warnungen:</p>
+    <ul class="alerts-list"></ul>
+    <div class="modal-actions"><button data-action="close">Schließen</button></div>
+  `);
+  modal.overlay.querySelector('.alerts-list').innerHTML =
+    currentAlerts.map(a => `<li class="${a.type}">${escapeHtml(a.text)}</li>`).join('');
+  modal.overlay.addEventListener('click', (ev) => {
+    if (ev.target.dataset && ev.target.dataset.action === 'close') modal.close();
+  });
+};
 
 function restartLiveTimer() {
   if (liveTimer) clearInterval(liveTimer);
   liveTimer = setInterval(() => {
-    if (dayEl.value === '__today__' && liveEl.checked) load();
+    if (!hasCustomRange() && dayEl.value === '__today__' && liveEl.checked) load();
   }, 5000);
 }
 
-document.getElementById('prev').onclick = () => { offset = Math.max(0, offset - LIMIT); load(); };
-document.getElementById('next').onclick = () => { offset = offset + LIMIT; load(); };
-sourceEl.onchange = async () => { offset = 0; await loadDates(); await loadLevels(); load(); };
-dayEl.onchange = () => { offset = 0; load(); };
-levelEl.onchange = () => { offset = 0; load(); };
+liveEl.onchange = () => { if (!hasCustomRange() && dayEl.value === '__today__') load(); };
+
+document.getElementById('prev').onclick = () => {
+  if (!firstShown) return;
+  liveEl.checked = false;
+  pendingCursor = { before: firstShown };
+  load();
+};
+document.getElementById('next').onclick = () => {
+  if (!lastShown) return;
+  liveEl.checked = false;
+  pendingCursor = { after: lastShown };
+  load();
+};
+sourceEl.onchange = async () => { pendingCursor = null; await loadDates(); await loadLevels(); load(); };
+dayEl.onchange = () => { pendingCursor = null; load(); };
+levelEl.onchange = () => { liveEl.checked = false; pendingCursor = null; load(); };
 let searchDebounce;
-searchEl.oninput = () => { clearTimeout(searchDebounce); searchDebounce = setTimeout(() => { offset = 0; load(); }, 300); };
+searchEl.oninput = () => {
+  liveEl.checked = false;
+  pendingCursor = null;
+  clearTimeout(searchDebounce);
+  searchDebounce = setTimeout(load, 300);
+};
+
+// Scrolling away from the live edge (bottom in the default oldest-first
+// order, top when the newest-first toggle is on) pauses live-follow, same
+// as älter/neuer/level/search/Zeitraum -- otherwise the next 5s auto-
+// refresh (or auto-scroll) would yank the view out from under you mid-read.
+// Only reacts when actually live, so our own auto-scroll (which lands
+// exactly on that edge) never triggers it.
+logEl.addEventListener('scroll', () => {
+  if (!liveEl.checked) return;
+  const atBottom = logEl.scrollTop + logEl.clientHeight >= logEl.scrollHeight - 4;
+  const atTop = logEl.scrollTop <= 4;
+  if (!(sortDesc ? atTop : atBottom)) liveEl.checked = false;
+});
+
+// Export always covers exactly the active filter (source/day-or-Zeitraum/
+// level/search) -- no separate line-range concept, which stopped
+// corresponding to anything visible once paging became cursor-based (see
+// CHANGELOG). Both buttons are disabled while live-following, since
+// exporting a constantly-moving target doesn't make sense -- see load().
+function exportParams() {
+  const p = params({});
+  if (!hasCustomRange()) {
+    const isToday = dayEl.value === '__today__';
+    p.set('day', isToday ? new Date().toISOString().slice(0, 10) : dayEl.value);
+  }
+  return p;
+}
 
 document.getElementById('export').onclick = () => {
-  const from = document.getElementById('from').value || 0;
-  const to = document.getElementById('to').value;
-  const isToday = dayEl.value === '__today__';
-  const day = isToday ? new Date().toISOString().slice(0, 10) : dayEl.value;
-  const p = params({ start: from });
-  p.set('day', day);
-  if (to) p.set('end', to);
-  window.open('/api/logs/export?' + p.toString(), '_blank');
+  window.open('/api/logs/export?' + exportParams().toString(), '_blank');
+};
+
+const pasteExportBtn = document.getElementById('paste-export');
+pasteExportBtn.onclick = async () => {
+  pasteExportBtn.disabled = true;
+  const originalText = pasteExportBtn.textContent;
+  pasteExportBtn.textContent = 'Wird gesendet...';
+  try {
+    const res = await fetch('/api/logs/export/paste?' + exportParams().toString(), { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) {
+      showToast(data.detail || 'Senden an Paste fehlgeschlagen', 'error', { sticky: true });
+      return;
+    }
+    let copied = false;
+    try { await navigator.clipboard.writeText(data.url); copied = true; } catch (e) { /* clipboard unavailable */ }
+    showLink(copied ? 'Link (in Zwischenablage kopiert):' : 'Link:', data.url);
+  } catch (e) {
+    showToast('Senden an Paste fehlgeschlagen: ' + e.message, 'error', { sticky: true });
+  } finally {
+    pasteExportBtn.disabled = false;
+    pasteExportBtn.textContent = originalText;
+  }
 };
 
 const fetchNowBtn = document.getElementById('fetch-now');
@@ -320,6 +776,13 @@ async function openSettings() {
   document.getElementById('s-ramdisk').value = data.settings.openwb_ramdisk_path;
   document.getElementById('s-interval').value = data.settings.fetch_interval_seconds;
   document.getElementById('s-retention').value = data.settings.retention_days;
+  document.getElementById('s-page-size').value = data.settings.page_size;
+  const usesCustomPaste = data.settings.paste_upload_url !== PASTE_DEFAULT_UPLOAD_URL ||
+    data.settings.paste_view_url !== PASTE_DEFAULT_VIEW_URL;
+  document.getElementById('s-paste-custom').checked = usesCustomPaste;
+  document.getElementById('s-paste-custom-fields').style.display = usesCustomPaste ? 'block' : 'none';
+  document.getElementById('s-paste-upload').value = data.settings.paste_upload_url;
+  document.getElementById('s-paste-view').value = data.settings.paste_view_url;
 
   const box = document.getElementById('s-sources');
   box.innerHTML = '';
@@ -330,6 +793,7 @@ async function openSettings() {
     wrap.innerHTML = `<input type="checkbox" id="${id}" value="${src.name}" ${checked}> ${src.label} <span style="color:var(--muted)">(${src.format})</span>`;
     box.appendChild(wrap);
   }
+  await loadUpdateInfo();
   backdrop.classList.add('open');
 }
 
@@ -341,12 +805,20 @@ backdrop.onclick = (e) => { if (e.target === backdrop) closeSettings(); };
 
 document.getElementById('settings-save').onclick = async () => {
   const enabled = [...document.querySelectorAll('#s-sources input:checked')].map(el => el.value);
+  const useCustomPaste = document.getElementById('s-paste-custom').checked;
   const patch = {
     openwb_base_url: document.getElementById('s-base-url').value,
     openwb_ramdisk_path: document.getElementById('s-ramdisk').value,
     enabled_sources: enabled,
     fetch_interval_seconds: parseInt(document.getElementById('s-interval').value, 10),
     retention_days: parseInt(document.getElementById('s-retention').value, 10),
+    page_size: parseInt(document.getElementById('s-page-size').value, 10),
+    paste_upload_url: useCustomPaste
+      ? document.getElementById('s-paste-upload').value
+      : PASTE_DEFAULT_UPLOAD_URL,
+    paste_view_url: useCustomPaste
+      ? document.getElementById('s-paste-view').value
+      : PASTE_DEFAULT_VIEW_URL,
   };
   const res = await fetch('/api/settings', {
     method: 'PUT',
@@ -359,16 +831,98 @@ document.getElementById('settings-save').onclick = async () => {
     msgEl.className = 'error';
     return;
   }
-  msgEl.textContent = 'Gespeichert. Wird beim nächsten Abruf wirksam.';
+  const saved = await res.json();
+  LIMIT = saved.settings.page_size;
+  msgEl.textContent = 'Gespeichert. Wird sofort wirksam.';
   msgEl.className = 'ok';
   await loadSources();
   await loadDates();
   await loadLevels();
+  pendingCursor = null;
+  await load();
   await loadStatus();
   setTimeout(closeSettings, 900);
 };
 
+// ---- Update ----
+const updateBtn = document.getElementById('update-btn');
+const updateCheckBtn = document.getElementById('update-check');
+const updateCommitEl = document.getElementById('update-commit');
+const updateMsgEl = document.getElementById('update-msg');
+
+async function loadUpdateInfo() {
+  updateMsgEl.textContent = '';
+  updateMsgEl.className = '';
+  const res = await fetch('/api/update/version');
+  const data = await res.json();
+  updateCommitEl.textContent = data.current_commit ? data.current_commit : '-';
+  updateBtn.disabled = !data.available;
+  updateCheckBtn.disabled = !data.available;
+  const title = data.available
+    ? ''
+    : 'Kein Git-Checkout unter /app (Bind-Mount fehlt?) — siehe DEPLOYMENT.md';
+  updateBtn.title = title;
+  updateCheckBtn.title = title;
+}
+
+updateCheckBtn.onclick = async () => {
+  updateMsgEl.textContent = 'Suche nach Updates...';
+  updateMsgEl.className = '';
+  const data = await (await fetch('/api/update/check')).json();
+  if (data.error) {
+    updateMsgEl.textContent = 'Prüfung fehlgeschlagen: ' + data.error;
+    updateMsgEl.className = 'error';
+    return;
+  }
+  updateMsgEl.textContent = data.update_available
+    ? `Update verfügbar (${data.current} → ${data.latest})`
+    : `Aktuell (${data.current})`;
+  updateMsgEl.className = 'ok';
+};
+
+async function waitForRestartThenReload() {
+  // docker-compose's restart policy brings the process back within a
+  // second or two -- poll until it answers again, then reload so the
+  // (possibly also-updated) frontend gets refreshed too.
+  for (let i = 0; i < 30; i++) {
+    await new Promise(r => setTimeout(r, 1000));
+    try {
+      if ((await fetch('/api/status')).ok) { window.location.reload(); return; }
+    } catch (e) { /* still restarting */ }
+  }
+  updateMsgEl.textContent = 'Startet noch... bitte in Kürze manuell neu laden.';
+}
+
+updateBtn.onclick = async () => {
+  if (!(await showConfirm('Neueste Version laden und die Anwendung jetzt neu starten?'))) return;
+  updateBtn.disabled = true;
+  const originalText = updateBtn.textContent;
+  updateBtn.textContent = 'Wird aktualisiert...';
+  try {
+    const result = await (await fetch('/api/update', { method: 'POST' })).json();
+    if (!result.ok) {
+      updateMsgEl.textContent = 'Update fehlgeschlagen: ' + result.message;
+      updateMsgEl.className = 'error';
+      return;
+    }
+    if (result.restarting) {
+      updateMsgEl.textContent = 'Startet neu...';
+      updateMsgEl.className = 'ok';
+      await waitForRestartThenReload();
+      return;
+    }
+    updateMsgEl.textContent = result.message;
+    updateMsgEl.className = 'ok';
+  } finally {
+    updateBtn.disabled = false;
+    updateBtn.textContent = originalText;
+  }
+};
+
 (async function init() {
+  updateRangeUI();
+  const settingsRes = await fetch('/api/settings');
+  LIMIT = (await settingsRes.json()).settings.page_size;
   await loadSources();
   await loadDates();
   await loadLevels();

@@ -53,11 +53,28 @@ variables, no restart. Full picture in `README.md`; details in
   the same source's tail state.
 - `app/web.py` — FastAPI routes; all reads/writes are plain parameterized
   SQL via asyncpg, no ORM.
+- `app/updater.py` — optional in-app self-update (`git pull` + process
+  restart). Works because `docker-compose.yml` bind-mounts the whole repo
+  onto the container's `WORKDIR`, so the running code *is* the git
+  checkout; no Docker socket or image rebuild involved. `self_update_available()`
+  gates it off (and hides the UI controls) when that bind mount isn't
+  present, e.g. a plain image deployment.
+- `app/mcp_server.py` — MCP server (`search_logs`/`tail_logs`/
+  `export_logs` tools, an `openwb://sources` resource) exposing the same
+  data as the web UI/API to AI assistants, mounted on the same FastAPI
+  app at `/mcp` via the Streamable HTTP transport -- same port, same DB
+  pool, same no-auth trust model as everything else. Pinned to `mcp`'s
+  1.x line in `requirements.txt`: 2.x forces a `starlette` major-version
+  bump incompatible with our `fastapi` pin. Mounting disables the
+  library's own lifespan, so `app/main.py`'s lifespan has to enter
+  `mcp.session_manager.run()` itself.
 - `app/templates/index.html` — the entire frontend, **in German**: vanilla
   JS, no build step, polls the JSON API. Theme is CSS custom properties
-  (light default, dark via `prefers-color-scheme` and/or a `data-theme`
-  override persisted in `localStorage`) — see the design-token block at
-  the top of the file. Keep new UI copy in German too.
+  (light default, dark via `prefers-color-scheme` for first-visit only,
+  then an explicit `data-theme` toggle persisted in `localStorage` — a
+  plain light/dark flip, not a three-way cycle through "system", which
+  used to make the first click look like a no-op) — see the design-token
+  block at the top of the file. Keep new UI copy in German too.
 
 Storage is TimescaleDB only — there is deliberately no flat-file log
 output. Retention is a database policy (`add_retention_policy`), not

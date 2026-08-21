@@ -1,5 +1,6 @@
 """User-editable settings: where openWB is, which of its logs to collect,
-how long to keep them, and how often to poll. Stored in the `app_settings`
+how long to keep them, how often to poll, and how many lines to show per
+page in the UI. Stored in the `app_settings`
 table (one JSONB row) so changes made through the web UI take effect on the
 next poll cycle without a container restart -- unlike app/config.py, which
 holds infra-level settings (DB connection, port, ...) fixed for the life
@@ -25,13 +26,26 @@ _KEY = "config"
 # user is expected to confirm/correct in the settings panel.
 DEFAULT_OPENWB_BASE_URL = "http://openwb"
 DEFAULT_OPENWB_RAMDISK_PATH = "/openWB/ramdisk"
-DEFAULT_FETCH_INTERVAL_SECONDS = 600  # 10 min
-DEFAULT_RETENTION_DAYS = 30
+DEFAULT_FETCH_INTERVAL_SECONDS = 120  # 2 min -- most sources rotate faster than the old 10 min
+DEFAULT_RETENTION_DAYS = 7
+DEFAULT_PAGE_SIZE = 5000
+# openWB's own pastebin, https://github.com/lucko/paste self-hosted --
+# verified against the live instance: the frontend at paste.openwb.de
+# serves a React app whose compiled JS points its uploads at bytebin.
+# openwb.de/post (bytebin is paste's storage backend), and the resulting
+# key is viewable at paste.openwb.de/<key>. Configurable in case that ever
+# changes or someone points this at their own instance.
+DEFAULT_PASTE_UPLOAD_URL = "https://bytebin.openwb.de/post"
+DEFAULT_PASTE_VIEW_URL = "https://paste.openwb.de/"
 
 MIN_FETCH_INTERVAL_SECONDS = 60
 MAX_FETCH_INTERVAL_SECONDS = 86400
 MIN_RETENTION_DAYS = 1
 MAX_RETENTION_DAYS = 3650
+MIN_PAGE_SIZE = 100
+# Matches /api/logs' own `limit` cap (app/web.py) -- no point accepting a
+# setting the API would reject anyway.
+MAX_PAGE_SIZE = 20000
 
 
 class RuntimeSettings(TypedDict):
@@ -40,6 +54,9 @@ class RuntimeSettings(TypedDict):
     enabled_sources: list[str]
     fetch_interval_seconds: int
     retention_days: int
+    page_size: int
+    paste_upload_url: str
+    paste_view_url: str
 
 
 def defaults() -> RuntimeSettings:
@@ -49,6 +66,9 @@ def defaults() -> RuntimeSettings:
         "enabled_sources": list(DEFAULT_ENABLED),
         "fetch_interval_seconds": DEFAULT_FETCH_INTERVAL_SECONDS,
         "retention_days": DEFAULT_RETENTION_DAYS,
+        "page_size": DEFAULT_PAGE_SIZE,
+        "paste_upload_url": DEFAULT_PASTE_UPLOAD_URL,
+        "paste_view_url": DEFAULT_PASTE_VIEW_URL,
     }
 
 
@@ -99,6 +119,26 @@ def validate(patch: dict) -> dict:
                 f"und {MAX_RETENTION_DAYS} Tagen liegen"
             )
         clean["retention_days"] = days
+
+    if "page_size" in patch:
+        size = int(patch["page_size"])
+        if not (MIN_PAGE_SIZE <= size <= MAX_PAGE_SIZE):
+            raise ValidationError(
+                f"Die Seitengröße muss zwischen {MIN_PAGE_SIZE} und {MAX_PAGE_SIZE} liegen"
+            )
+        clean["page_size"] = size
+
+    if "paste_upload_url" in patch:
+        url = str(patch["paste_upload_url"]).strip()
+        if not url.startswith(("http://", "https://")):
+            raise ValidationError("Die Paste-Upload-URL muss mit http:// oder https:// beginnen")
+        clean["paste_upload_url"] = url
+
+    if "paste_view_url" in patch:
+        url = str(patch["paste_view_url"]).strip()
+        if not url.startswith(("http://", "https://")):
+            raise ValidationError("Die Paste-Anzeige-URL muss mit http:// oder https:// beginnen")
+        clean["paste_view_url"] = url if url.endswith("/") else url + "/"
 
     return clean
 

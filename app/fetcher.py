@@ -17,8 +17,8 @@ import httpx
 
 from .db import apply_retention_policy, get_state, set_state
 from .log_catalog import CATALOG
-from .log_merge import split_new_lines, stitch_gap
-from .log_parse import parse_line
+from .log_merge import assemble_backfill, split_new_lines, stitch_gap
+from .log_parse import continuation_ratio, parse_line
 from .runtime_settings import RuntimeSettings, defaults, get_settings
 
 logger = logging.getLogger("openwb_logger.fetcher")
@@ -29,6 +29,16 @@ HTTP_TIMEOUT_SECONDS = 15
 # between polls. Internal tuning, not user-facing settings.
 TAIL_WINDOW = 50
 
+# A batch where more than this fraction of lines don't match the source's
+# expected format (log_catalog.py) is treated as a likely format mismatch
+# rather than occasional legitimate multi-line content (tracebacks etc.) --
+# see SourceStatus.format_mismatch_suspected and log_parse.continuation_ratio.
+FORMAT_MISMATCH_RATIO_THRESHOLD = 0.5
+# Batches smaller than this are too small for the ratio to be a reliable
+# signal -- e.g. one 2-line traceback in an otherwise tiny batch would
+# swing it wildly -- so the check is skipped below this size.
+FORMAT_MISMATCH_MIN_BATCH = 10
+
 
 @dataclass
 class SourceStatus:
@@ -36,6 +46,7 @@ class SourceStatus:
     total_gaps_detected: int = 0
     total_gaps_recovered: int = 0
     last_error: str | None = None
+    format_mismatch_suspected: bool = False
 
 
 @dataclass
@@ -99,33 +110,66 @@ class Fetcher:
         st.last_error = None
 
         tail_key = f"tail:{name}"
-        previous_tail: list[str] = await get_state(pool, tail_key, default=[])
-        new_lines, gap = split_new_lines(previous_tail, content)
+        stored_tail = await get_state(pool, tail_key, default=None)
+        first_fetch = stored_tail is None
+        previous_tail: list[str] = stored_tail or []
+        gap = False
 
-        if gap:
-            st.total_gaps_detected += 1
-            logger.info("[%s] gap detected between polls, attempting recovery from backups", name)
-            recovered = await self._recover_gap(
-                client, previous_tail, content, url, meta["backup_count"]
+        if first_fetch:
+            logger.info(
+                "[%s] first-ever fetch for this source, backfilling from existing backups", name
             )
-            if recovered is not None:
-                new_lines = recovered
-                st.total_gaps_recovered += 1
-            else:
-                logger.warning(
-                    "[%s] could not recover gap from any of the %d backup files; "
-                    "some log lines were likely lost. Consider a shorter poll interval.",
-                    name, meta["backup_count"],
+            new_lines = await self._backfill(client, url, content, meta["backup_count"])
+        else:
+            new_lines, gap = split_new_lines(previous_tail, content)
+
+            if gap:
+                st.total_gaps_detected += 1
+                logger.info(
+                    "[%s] gap detected between polls, attempting recovery from backups", name
                 )
-                marker = f"*** openwb-logger: gap detected in {name}, some lines may be missing ***"
-                new_lines = [marker] + new_lines
+                recovered = await self._recover_gap(
+                    client, previous_tail, content, url, meta["backup_count"]
+                )
+                if recovered is not None:
+                    new_lines = recovered
+                    st.total_gaps_recovered += 1
+                else:
+                    logger.warning(
+                        "[%s] could not recover gap from any of the %d backup files; "
+                        "some log lines were likely lost. Consider a shorter poll interval.",
+                        name, meta["backup_count"],
+                    )
+                    marker = (
+                        f"*** openwb-logger: gap detected in {name}, some lines may be missing ***"
+                    )
+                    new_lines = [marker] + new_lines
 
         if new_lines:
-            await self._insert_lines(pool, name, meta["format"], new_lines)
+            ratio = await self._insert_lines(pool, name, meta["format"], new_lines)
+            if len(new_lines) >= FORMAT_MISMATCH_MIN_BATCH:
+                suspected = ratio > FORMAT_MISMATCH_RATIO_THRESHOLD
+                if suspected and not st.format_mismatch_suspected:
+                    logger.warning(
+                        "[%s] %.0f%% of %d new lines didn't match the expected '%s' format -- "
+                        "check the format declared in log_catalog.py for this source",
+                        name, ratio * 100, len(new_lines), meta["format"],
+                    )
+                st.format_mismatch_suspected = suspected
             new_tail = (previous_tail + new_lines) if not gap else new_lines
             await set_state(pool, tail_key, new_tail[-TAIL_WINDOW:])
 
         st.last_lines_added = len(new_lines)
+
+    async def _backfill(
+        self, client: httpx.AsyncClient, url: str, latest_content: str, backup_count: int,
+    ) -> list[str]:
+        older_contents = []
+        for n in range(backup_count, 0, -1):
+            backup = await self._get(client, f"{url}.{n}")
+            if backup is not None:
+                older_contents.append(backup)
+        return assemble_backfill(older_contents, latest_content)
 
     async def _recover_gap(
         self, client, previous_tail: list[str], latest_content: str, url: str, backup_count: int,
@@ -139,7 +183,10 @@ class Fetcher:
                 return recovered
         return None
 
-    async def _insert_lines(self, pool, source: str, log_format: str, lines: list[str]) -> None:
+    async def _insert_lines(self, pool, source: str, log_format: str, lines: list[str]) -> float:
+        """Returns the fraction of `lines` that didn't match the expected
+        format, for the caller to compare against
+        FORMAT_MISMATCH_RATIO_THRESHOLD."""
         previous = None
         rows = []
         for raw in lines:
@@ -159,6 +206,7 @@ class Fetcher:
                     for r in rows
                 ],
             )
+        return continuation_ratio(rows)
 
 
 fetcher = Fetcher()

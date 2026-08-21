@@ -15,12 +15,14 @@ def test_validate_accepts_a_full_valid_patch():
         "enabled_sources": ["main", "chargelog"],
         "fetch_interval_seconds": 600,
         "retention_days": 30,
+        "page_size": 5000,
     })
     assert clean["openwb_base_url"] == "http://10.1.5.32"
     assert clean["openwb_ramdisk_path"] == "/openWB/ramdisk"
     assert clean["enabled_sources"] == ["main", "chargelog"]
     assert clean["fetch_interval_seconds"] == 600
     assert clean["retention_days"] == 30
+    assert clean["page_size"] == 5000
 
 
 def test_validate_only_touches_provided_keys():
@@ -56,3 +58,22 @@ def test_validate_rejects_fetch_interval_out_of_range():
 def test_validate_rejects_retention_days_out_of_range():
     with pytest.raises(ValidationError):
         validate({"retention_days": 0})
+
+
+def test_validate_rejects_page_size_out_of_range():
+    with pytest.raises(ValidationError):
+        validate({"page_size": 50})
+    with pytest.raises(ValidationError):
+        validate({"page_size": 50000})
+
+
+def test_validate_rejects_paste_urls_without_scheme():
+    with pytest.raises(ValidationError):
+        validate({"paste_upload_url": "bytebin.openwb.de/post"})
+    with pytest.raises(ValidationError):
+        validate({"paste_view_url": "paste.openwb.de"})
+
+
+def test_validate_normalizes_paste_view_url_trailing_slash():
+    clean = validate({"paste_view_url": "https://paste.example.com"})
+    assert clean["paste_view_url"] == "https://paste.example.com/"
