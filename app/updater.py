@@ -38,8 +38,16 @@ def _short_sha(ref: str) -> str | None:
     return out if code == 0 else None
 
 
-def _describe(ref: str) -> str | None:
-    code, out, _ = _run("git", "-C", REPO_DIR, "describe", "--tags", "--always", "--dirty", ref)
+def _describe(ref: str | None = None) -> str | None:
+    """`--dirty` and an explicit commit-ish are mutually exclusive in git
+    (it errors out: "Option '--dirty' and commit-ishes cannot be used
+    together") -- `--dirty` only makes sense against the working tree, so
+    it's only passed when describing that (ref=None, i.e. HEAD implicitly).
+    Describing another ref (e.g. "@{u}") never wants --dirty since that
+    ref isn't our working tree anyway."""
+    args = ["git", "-C", REPO_DIR, "describe", "--tags", "--always"]
+    args += ["--dirty"] if ref is None else [ref]
+    code, out, _ = _run(*args)
     return out if code == 0 else None
 
 
@@ -51,7 +59,7 @@ def get_current_version() -> str | None:
     OPENWB_LOGGER_IMAGE_VERSION (baked in at build time, see Dockerfile)
     when there's no live git checkout to describe, so a plain image
     deployment still shows something meaningful instead of "-"."""
-    return _describe("HEAD") or os.environ.get("OPENWB_LOGGER_IMAGE_VERSION") or None
+    return _describe() or os.environ.get("OPENWB_LOGGER_IMAGE_VERSION") or None
 
 
 def check_for_update() -> dict:

@@ -10,6 +10,17 @@ what that means in practice for this project.
 
 ### Fixed
 - Settings panel's version display showed "unknown" instead of a real
+  `git describe` version, still, even after the `safe.directory` fix
+  below: `_describe()` unconditionally passed both `--dirty` and an
+  explicit commit-ish (`HEAD`, or `@{u}` for the upstream check), which
+  git flatly rejects ("Option '--dirty' and commit-ishes cannot be used
+  together") -- so every single call failed and silently fell through to
+  the "unknown" build-arg default, on every deployment, tags or no tags.
+  `--dirty` only makes sense against the working tree, so it's now only
+  passed when describing that (no explicit ref); the upstream-ref lookup
+  passes `@{u}` with no `--dirty` instead. Reproduced the exact failure
+  and confirmed the fix locally before landing it.
+- Settings panel's version display showed "unknown" instead of a real
   `git describe` version: the Dockerfile's multi-stage rewrite (for the
   arm/v7 build) dropped the `git config --system --add safe.directory
   /app` line a previous version had. Without it, git refuses every
