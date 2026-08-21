@@ -16,7 +16,7 @@ from datetime import date, datetime
 
 from mcp.server.fastmcp import FastMCP
 
-from .db import get_pool
+from .db import RAW_EXPR, get_pool
 from .log_catalog import CATALOG
 from .web import _export_body, _filters
 
@@ -66,7 +66,7 @@ async def search_logs(
     limit = min(limit, SEARCH_MAX_LIMIT)
     where, params = _filters(day, search, level, source, from_, to)
     rows = await pool.fetch(
-        f"SELECT id, ts, level, logger_name, source, raw FROM log_lines {where} "
+        f"SELECT id, ts, level, logger_name, source, {RAW_EXPR} AS raw FROM log_lines {where} "
         f"ORDER BY ts, id LIMIT ${len(params) + 1}",
         *params, limit,
     )
@@ -86,7 +86,7 @@ async def tail_logs(
     n = min(n, TAIL_MAX_N)
     where, params = _filters(None, None, level, source)
     rows = await pool.fetch(
-        f"SELECT id, ts, level, logger_name, source, raw FROM log_lines {where} "
+        f"SELECT id, ts, level, logger_name, source, {RAW_EXPR} AS raw FROM log_lines {where} "
         f"ORDER BY ts DESC, id DESC LIMIT ${len(params) + 1}",
         *params, n,
     )

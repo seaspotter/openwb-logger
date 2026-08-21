@@ -6,6 +6,21 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
+### Changed
+- Dropped the `raw` column from `log_lines`. For a DETAILED-format line, it
+  stored the entire original text -- timestamp, logger, line number,
+  level, thread, *and* message -- even though all but the message are
+  already stored as their own columns (measured ~40% of that column's
+  bytes as pure duplication on a real 1M+ row instance). The exact
+  original line is now reconstructed on read from the structured columns
+  instead (`RAW_EXPR` in `app/db.py`), so display, export, and search
+  ("Suchen") are all byte-for-byte unchanged -- verified against a real
+  Postgres instance (DETAILED/SHORT/continuation lines, and a simulated
+  upgrade from the old schema) before landing this, including one real
+  bug caught that way: plain `to_char()` isn't IMMUTABLE, so it can't be
+  used directly in the expression index backing search -- fixed with a
+  small IMMUTABLE wrapper function instead.
+
 ## [0.1.0] - 2026-08-21
 
 ### Added

@@ -196,12 +196,12 @@ class Fetcher:
         async with pool.acquire() as conn:
             await conn.executemany(
                 "INSERT INTO log_lines "
-                "(ts, source, logger_name, line_no, level, thread, message, raw, is_continuation) "
-                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+                "(ts, source, logger_name, line_no, level, thread, message, is_continuation) "
+                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
                 [
                     (
                         r["ts"], source, r["logger_name"], r["line_no"], r["level"],
-                        r["thread"], r["message"], r["raw"], r["is_continuation"],
+                        r["thread"], r["message"], r["is_continuation"],
                     )
                     for r in rows
                 ],

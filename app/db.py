@@ -21,6 +21,35 @@ logger = logging.getLogger("openwb_logger.db")
 
 _pool: asyncpg.Pool | None = None
 
+# Reconstructs the exact original log line from its already-parsed columns,
+# instead of also storing it verbatim as a `raw` column would -- for a
+# DETAILED-format line, `raw` duplicated the ts/logger_name/line_no/level/
+# thread text that's already sitting right next to it in structured form
+# (roughly 40% of that column's bytes on this project's own data). Verified
+# byte-for-byte against a real Postgres instance (log_lines_fmt_ts's format
+# codes, zero-padding, DETAILED/SHORT/continuation cases) before landing
+# this. Shared by the trigram index below and by web.py/mcp_server.py's
+# queries, so search and display/export always see the identical
+# reconstruction.
+#
+# Uses a small IMMUTABLE wrapper (see _SCHEMA_STATEMENTS) around to_char
+# instead of calling it directly: plain to_char() is only STABLE, not
+# IMMUTABLE (some of its format codes, e.g. month/day names, depend on
+# lc_time), which Postgres rejects in an expression index ("functions in
+# index expression must be marked IMMUTABLE") even though the numeric-only
+# codes used here (YYYY-MM-DD HH24:MI:SS, MS) never actually vary by
+# locale -- verified this restriction is real, not theoretical, since the
+# first version of this without the wrapper failed outright at CREATE
+# INDEX time.
+RAW_EXPR = """(CASE
+    WHEN is_continuation THEN message
+    WHEN logger_name IS NULL THEN
+        log_lines_fmt_ts(ts) || ' - ' || message
+    ELSE
+        log_lines_fmt_ts(ts) || ' - {' ||
+        logger_name || ':' || line_no || '} - {' || level || ':' || thread || '} - ' || message
+END)"""
+
 _SCHEMA_STATEMENTS = [
     "CREATE EXTENSION IF NOT EXISTS timescaledb;",
     # pg_trgm backs idx_log_lines_raw_trgm below, for `raw ILIKE` search --
@@ -38,13 +67,23 @@ _SCHEMA_STATEMENTS = [
         level TEXT,
         thread TEXT,
         message TEXT,
-        raw TEXT NOT NULL,
         is_continuation BOOLEAN NOT NULL DEFAULT FALSE,
         PRIMARY KEY (id, ts)
     );
     """,
     # Additive migration for deployments created before `source` existed.
     "ALTER TABLE log_lines ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'main';",
+    # `raw` used to be stored verbatim; now reconstructed on read via
+    # RAW_EXPR above (see idx_log_lines_raw_trgm below), so it's redundant.
+    "ALTER TABLE log_lines DROP COLUMN IF EXISTS raw;",
+    # IMMUTABLE wrapper around to_char so RAW_EXPR is usable in an
+    # expression index -- see the comment on RAW_EXPR above for why plain
+    # to_char() doesn't qualify.
+    """
+    CREATE OR REPLACE FUNCTION log_lines_fmt_ts(t TIMESTAMP) RETURNS TEXT AS $$
+        SELECT to_char(t, 'YYYY-MM-DD HH24:MI:SS') || ',' || to_char(t, 'MS')
+    $$ LANGUAGE SQL IMMUTABLE;
+    """,
     "SELECT create_hypertable('log_lines', 'ts', if_not_exists => TRUE);",
     "CREATE INDEX IF NOT EXISTS idx_log_lines_level ON log_lines (level);",
     "CREATE INDEX IF NOT EXISTS idx_log_lines_source ON log_lines (source);",
@@ -56,9 +95,10 @@ _SCHEMA_STATEMENTS = [
     # the table's PK is (id, ts), which doesn't help ORDER BY ts, id or the
     # (ts, id) > (...) row comparisons used there.
     "CREATE INDEX IF NOT EXISTS idx_log_lines_ts_id ON log_lines (ts, id);",
-    # GIN trigram index so `raw ILIKE '%term%'` (search) can use an index
-    # scan instead of reading every row -- see CREATE EXTENSION pg_trgm above.
-    "CREATE INDEX IF NOT EXISTS idx_log_lines_raw_trgm ON log_lines USING GIN (raw gin_trgm_ops);",
+    # GIN trigram index on the *reconstructed* line (RAW_EXPR), not a stored
+    # column, so `raw ILIKE '%term%'` (search) can still use an index scan --
+    # see CREATE EXTENSION pg_trgm above.
+    f"CREATE INDEX IF NOT EXISTS idx_log_lines_raw_trgm ON log_lines USING GIN (({RAW_EXPR}) gin_trgm_ops);",
     """
     CREATE TABLE IF NOT EXISTS fetcher_state (
         key TEXT PRIMARY KEY,

@@ -13,7 +13,7 @@ from fastapi.responses import HTMLResponse, PlainTextResponse
 from fastapi.templating import Jinja2Templates
 from starlette.requests import Request
 
-from .db import get_pool
+from .db import RAW_EXPR, get_pool
 from .fetcher import fetcher
 from .log_catalog import CATALOG
 from .runtime_settings import ValidationError, get_settings, update_settings
@@ -37,9 +37,21 @@ def _filters(
     params: list = []
 
     def add(clause: str, *values) -> None:
+        # Manual "{}" substitution rather than str.format(): RAW_EXPR (used
+        # below for the search clause) contains literal, non-adjacent { }
+        # characters of its own (reconstructing openWB's "{logger:lineno}"
+        # format), which .format() would misparse as extra replacement
+        # fields. Splitting on the literal two-char "{}" marker instead
+        # only ever matches an intentional placeholder, never those.
         start = len(params) + 1
         params.extend(values)
-        clauses.append(clause.format(*[f"${i}" for i in range(start, len(params) + 1)]))
+        placeholders = [f"${i}" for i in range(start, len(params) + 1)]
+        parts = clause.split("{}")
+        assert len(parts) == len(placeholders) + 1, f"clause has wrong number of {{}} markers: {clause!r}"
+        result = parts[0]
+        for part, placeholder in zip(parts[1:], placeholders):
+            result += placeholder + part
+        clauses.append(result)
 
     if day:
         add("ts::date = {}::date", day)
@@ -52,7 +64,7 @@ def _filters(
     if before:
         add("(ts, id) < ({}, {})", *before)
     if search:
-        add("raw ILIKE {}", f"%{search}%")
+        add(f"{RAW_EXPR} ILIKE {{}}", f"%{search}%")
     if level:
         add("level = {}", level)
     if source:
@@ -135,7 +147,7 @@ async def api_logs(
     if tail:
         where, params = _filters(day, search, level, source, from_, to)
         rows = await pool.fetch(
-            f"SELECT id, ts, level, logger_name, source, raw FROM log_lines {where} "
+            f"SELECT id, ts, level, logger_name, source, {RAW_EXPR} AS raw FROM log_lines {where} "
             f"ORDER BY ts DESC, id DESC LIMIT ${len(params) + 1}",
             *params, limit + 1,
         )
@@ -145,7 +157,7 @@ async def api_logs(
     elif before:
         where, params = _filters(day, search, level, source, from_, to, before=before)
         rows = await pool.fetch(
-            f"SELECT id, ts, level, logger_name, source, raw FROM log_lines {where} "
+            f"SELECT id, ts, level, logger_name, source, {RAW_EXPR} AS raw FROM log_lines {where} "
             f"ORDER BY ts DESC, id DESC LIMIT ${len(params) + 1}",
             *params, limit + 1,
         )
@@ -155,7 +167,7 @@ async def api_logs(
     elif after:
         where, params = _filters(day, search, level, source, from_, to, after=after)
         rows = await pool.fetch(
-            f"SELECT id, ts, level, logger_name, source, raw FROM log_lines {where} "
+            f"SELECT id, ts, level, logger_name, source, {RAW_EXPR} AS raw FROM log_lines {where} "
             f"ORDER BY ts, id LIMIT ${len(params) + 1}",
             *params, limit + 1,
         )
@@ -165,7 +177,7 @@ async def api_logs(
     else:
         where, params = _filters(day, search, level, source, from_, to)
         rows = await pool.fetch(
-            f"SELECT id, ts, level, logger_name, source, raw FROM log_lines {where} "
+            f"SELECT id, ts, level, logger_name, source, {RAW_EXPR} AS raw FROM log_lines {where} "
             f"ORDER BY ts, id LIMIT ${len(params) + 1}",
             *params, limit + 1,
         )
@@ -195,7 +207,7 @@ async def _export_body(pool, day, search, level, source, from_, to) -> str:
     doesn't correspond to anything visible once paging is cursor-based;
     see CHANGELOG)."""
     where, params = _filters(day, search, level, source, from_, to)
-    rows = await pool.fetch(f"SELECT raw FROM log_lines {where} ORDER BY ts, id", *params)
+    rows = await pool.fetch(f"SELECT {RAW_EXPR} AS raw FROM log_lines {where} ORDER BY ts, id", *params)
     return "\n".join(r["raw"] for r in rows) + ("\n" if rows else "")
 
 
