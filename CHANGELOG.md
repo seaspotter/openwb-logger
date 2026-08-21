@@ -6,6 +6,19 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
+### Changed
+- Bumped `jinja2` 3.1.4 → 3.1.6 (fixes two GHSA sandbox-breakout
+  advisories flagged by newly-enabled Dependabot alerts -- not actually
+  exploitable here, since this app only ever renders one fixed,
+  developer-authored template via a plain, non-sandboxed environment, no
+  untrusted template content) and dev-only `pytest` 8.3.3 → 9.1.1 (fixes
+  a tmpdir-handling advisory affecting test runs, never the running
+  container). Needed bumping the previously-unpinned `pytest-asyncio` to
+  1.4.0 alongside it (0.24.0 hard-requires `pytest<9`) -- now pinned
+  explicitly in `requirements-dev.txt` for the first time. Verified the
+  full combination resolves cleanly (`pip check`) and the test suite
+  passes before landing this.
+
 ## [0.2.0] - 2026-08-21
 
 ### Added

@@ -1,7 +1,7 @@
 fastapi==0.115.0
 uvicorn==0.32.0
 httpx==0.27.2
-jinja2==3.1.4
+jinja2==3.1.6
 asyncpg==0.30.0
 # Pinned to the 1.x line deliberately: 2.x requires starlette>=0.48, which
 # conflicts with fastapi==0.115.0's own starlette<0.39 pin.
