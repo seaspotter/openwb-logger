@@ -1,9 +1,12 @@
 # Changelog
 
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
-No formal releases yet — entries are grouped by what shipped, not by tag.
+Versions follow [semver](https://semver.org/); see `DEVELOPMENT.md` for
+what that means in practice for this project.
 
 ## [Unreleased]
+
+## [0.1.0] - 2026-08-21
 
 ### Fixed
 - Per-source fetch errors (e.g. "could not reach ...") were computed by
@@ -226,8 +229,6 @@ No formal releases yet — entries are grouped by what shipped, not by tag.
   uvicorn (the Dockerfile hardcoded `--port 8080`) -- setting a custom
   `PORT` silently did nothing. The Dockerfile's `CMD` now reads `$PORT` at
   container start, and the unused `Settings.port` field was removed.
-
-## [0.1.0] - 2026-08-20
 
 ### Added
 - Initial version: poll openWB's `main.log` over HTTP on an interval.
