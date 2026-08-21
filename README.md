@@ -5,7 +5,7 @@ openWB keeps only about an hour of detail in `main.log` on its ramdisk
 logs over HTTP on a configurable interval, merges them gap-free, and
 stores them in TimescaleDB so you get a complete, searchable history
 instead of a rolling hour. A small web UI lets you browse, live-tail,
-filter, and export it — light or dark, your call.
+filter, search, and export it — light or dark, your call.
 
 ## Features
 
@@ -15,21 +15,30 @@ filter, and export it — light or dark, your call.
 - **Gap-free merging**: each poll only stores lines it hasn't seen yet. If
   a rotation happens between two polls, it automatically falls back to
   openWB's own rotated backups (`main.log.1` etc.) to recover the lines
-  that would otherwise fall through the gap.
+  that would otherwise fall through the gap. On a source's very first
+  poll, it backfills from those same backups instead of only capturing
+  lines going forward, so pre-existing history isn't lost either.
 - **Structured storage in TimescaleDB**: every line is parsed into
   timestamp, logger, level, thread, and message, so you can filter by
-  level, source, or date instead of grepping text.
+  level, source, or date instead of grepping text — backed by a `pg_trgm`
+  index for search and cursor-based paging that stays fast regardless of
+  how deep into a busy day you page.
 - **Retention** is enforced by a native TimescaleDB retention policy — old
   chunks are dropped automatically, no cron job.
 - **All setup lives in the app itself, not environment variables**: where
-  openWB is, which logs to collect, retention, and poll interval are all
-  configured from a settings panel in the UI (in German) and take effect
-  on the next poll — no redeploy needed. The only things left in `.env`
-  are pure infra wiring (DB password, port).
-- **Web UI** (German): browse any day, live-tail today with auto-refresh,
-  trigger an immediate fetch on demand, filter by source/level, search,
-  export the current view (or a specific line range) as a plain-text
-  snippet, and switch between light, dark, or system-matched theme.
+  openWB is, which logs to collect, retention, poll interval, and page
+  size are all configured from a settings panel in the UI (in German) and
+  take effect immediately — no redeploy needed. The only things left in
+  `.env` are pure infra wiring (DB password, port, timezone).
+- **Web UI** (German): browse any day or an arbitrary time range (with
+  15&nbsp;Min/30&nbsp;Min/1&nbsp;Std/2&nbsp;Std quick buttons), live-tail
+  today with auto-refresh, trigger an immediate fetch on demand, filter by
+  source/level, search, export the current filter as a plain-text file or
+  send it straight to a paste service for a shareable link, and toggle
+  light/dark theme.
+- **Optional in-app self-update**: an "Update" button that pulls the
+  latest code and restarts, no Docker socket or image rebuild required for
+  pure code changes — see [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ## How it works
 
@@ -67,6 +76,8 @@ the only setup step — everything else is configured through the app.
 
 ## Docs
 
+- [MANUAL.md](MANUAL.md) — using the web UI: browsing, live-tail, search,
+  Zeitraum, export, settings, self-update
 - [DEVELOPMENT.md](DEVELOPMENT.md) — local dev setup, running tests, adding
   a new log source
 - [DEPLOYMENT.md](DEPLOYMENT.md) — full configuration reference, backups,
@@ -78,9 +89,10 @@ the only setup step — everything else is configured through the app.
 
 ## Known limitations
 
-- Timestamps are stored exactly as openWB writes them (naive, no timezone
-  conversion) — that's the device's own wall-clock time.
-- Search is a plain `ILIKE` scan, fine at the volume a single openWB
-  produces; if that ever becomes a bottleneck, a `pg_trgm` index on `raw`
-  would be the next step.
+- Timestamps stored from log lines are exactly as openWB writes them
+  (naive, no timezone conversion) — that's the device's own wall-clock
+  time. App-generated timestamps (e.g. the status bar's last-fetch time)
+  use the container's own clock instead, so they need `TZ` set correctly
+  (see [DEPLOYMENT.md](DEPLOYMENT.md)) to show your local time rather than
+  UTC.
 - No authentication on the web UI — see [DEPLOYMENT.md](DEPLOYMENT.md).

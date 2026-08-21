@@ -131,11 +131,12 @@ approach used for `knxpilot`) rather than exposing port 8080 directly.
 
 ## Troubleshooting
 
-- **`/api/status` shows a `last_error` for a source**: the fetcher couldn't
-  reach that log's URL — check the base URL/ramdisk path in the settings
-  panel and that the openWB device is reachable from the container. Use
-  the "Jetzt abrufen" (fetch now) button in the UI to retry immediately
-  and see the result without waiting for the next scheduled poll.
+- **"Nicht erreichbar" in the status bar** (or a source's `last_error` in
+  `/api/status` directly): the fetcher couldn't reach that log's URL —
+  check the base URL/ramdisk path in the settings panel and that the
+  openWB device is reachable from the container. Use the "Jetzt abrufen"
+  (fetch now) button in the UI to retry immediately and see the result
+  without waiting for the next scheduled poll.
 - **Gaps keep appearing** (`total_gaps_detected` growing in `/api/status`):
   the poll interval is too long relative to how fast that log rotates —
   shorten the fetch interval in the settings panel.

@@ -556,6 +556,11 @@ async function loadStatus() {
     extra += `<span style="color:var(--error)" title="Viele Zeilen passen nicht zum erwarteten Format -- vermutlich stimmt das in log_catalog.py hinterlegte Format nicht mehr">` +
       `Format-Warnung: ${formatWarnings.join(', ')}</span>`;
   }
+  const sourceErrors = Object.entries(s.sources).filter(([, v]) => v.last_error);
+  if (sourceErrors.length) {
+    extra += `<span style="color:var(--error)" title="${sourceErrors.map(([n, v]) => `${n}: ${v.last_error}`).join('; ')}">` +
+      `Nicht erreichbar: ${sourceErrors.map(([n]) => n).join(', ')}</span>`;
+  }
   statusEl.innerHTML =
     `<span>Quelle: ${s.source_url}</span>` +
     `<span>Abruf: alle ${s.fetch_interval_seconds}s</span>` +

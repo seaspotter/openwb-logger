@@ -6,6 +6,13 @@ No formal releases yet — entries are grouped by what shipped, not by tag.
 ## [Unreleased]
 
 ### Fixed
+- Per-source fetch errors (e.g. "could not reach ...") were computed by
+  the backend and included in `/api/status`, but the status bar never
+  actually displayed them — only a whole-cycle failure (a DB problem,
+  say) would show anything, so a single unreachable source failed
+  silently in the UI. Now shown as "Nicht erreichbar: <source>" (hover for
+  the full error), separate from the existing "Fehler:" for whole-cycle
+  failures.
 - "An Paste senden" 502ing on uploads over roughly 5MB (a 15-minute
   Zeitraum export on a verbose source is already there) — confirmed
   directly against the live `bytebin.openwb.de` instance that its reverse
@@ -90,6 +97,12 @@ No formal releases yet — entries are grouped by what shipped, not by tag.
   based on those flags instead of a total.
 
 ### Added
+- [MANUAL.md](MANUAL.md): a short reference for the web UI itself
+  (toolbar controls, status bar, settings panel), linked from
+  `README.md`. `README.md` itself also refreshed — it had drifted behind
+  several changes this session (line-range export no longer exists, the
+  theme toggle isn't a 3-way system/light/dark cycle, search no longer
+  needs a `pg_trgm` caveat since that index now exists).
 - Format-mismatch warning: previously, a source whose actual log format
   no longer matched what `log_catalog.py` declared (e.g. an openWB update
   changing its format) failed completely silently — every line just fell
