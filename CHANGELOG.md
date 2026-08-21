@@ -156,6 +156,15 @@ what that means in practice for this project.
   based on those flags instead of a total.
 
 ### Added
+- Alerts indicator: a quiet "!" button in the header (next to "Jetzt
+  abrufen") replaces the scattered inline status-bar warnings
+  ("Fehler:"/"Nicht erreichbar:"/"Format-Warnung:") with one place to
+  check — badge only lights up when there's something to see, no popups,
+  no external notifications. Aggregates whole-cycle fetch failures,
+  per-source unreachability, format-mismatch warnings, unrecovered gaps,
+  and (new) a per-source count of actual ERROR-level log lines in the
+  last hour, which nothing previously surfaced at all — clicking shows
+  the full list in a modal.
 - MCP server at `/mcp`, mounted on the same FastAPI app as the web UI
   (same port, same DB pool, same no-auth trust model) via the Streamable
   HTTP transport — `search_logs` (day/range/level/source/text filters),

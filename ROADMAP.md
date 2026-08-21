@@ -28,14 +28,14 @@ open an issue or just start working if something here matters to you.
       `openwb://sources` resource, mounted at `/mcp` alongside the web UI
       on the same port (Streamable HTTP transport, `mcp` pinned to its
       1.x line — 2.x's `starlette` requirement conflicts with `fastapi`)
-
-## Next
-
-- [ ] Alerts indicator instead of a full webhook/notification system: a
+- [x] Alerts indicator instead of a full webhook/notification system: a
       small "!" button/badge in the UI aggregating current errors/
       warnings (fetch failures, format-mismatch, gaps, ERROR-level lines)
       in one place, quiet by default — no popups, no external
       notifications, just something to check when you want to.
+
+## Next
+
 - [ ] All-in-one image: bundle the app and TimescaleDB into a single
       container/image for simpler distribution, instead of the current
       two-service docker-compose setup. The infra-vs-runtime-settings split

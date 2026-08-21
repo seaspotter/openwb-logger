@@ -57,6 +57,17 @@
   button:hover { border-color: var(--accent); }
   button:disabled { opacity: 0.5; cursor: default; }
   button.icon { width: 32px; padding: 6px; display: inline-flex; align-items: center; justify-content: center; }
+  #alerts-btn { position: relative; color: var(--muted); }
+  #alerts-btn.has-alerts { color: var(--error); border-color: var(--error); }
+  #alerts-btn.has-alerts::after {
+    content: attr(data-count); position: absolute; top: -5px; right: -5px;
+    background: var(--error); color: #fff; font-size: 9px; line-height: 1.4;
+    min-width: 14px; height: 14px; border-radius: 7px; text-align: center;
+  }
+  .alerts-list { list-style: none; margin: 0 0 14px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .alerts-list li { font-size: 13px; padding: 6px 8px; border-radius: 6px; background: var(--bg); }
+  .alerts-list li.error { color: var(--error); }
+  .alerts-list li.warning { color: var(--warning); }
   label.check { display: flex; align-items: center; gap: 5px; font-size: 13px; color: var(--muted); }
   #right-controls { display: flex; align-items: center; gap: 8px; margin-left: auto; }
   main { padding: 10px 16px; }
@@ -159,6 +170,13 @@
     <button id="paste-export">An Paste senden</button>
     <button id="sort-toggle" class="icon" title="Sortierung umkehren">&#8645;</button>
     <button id="fetch-now">Jetzt abrufen</button>
+    <button id="alerts-btn" class="icon" title="Keine aktuellen Fehler oder Warnungen">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3 2 20h20L12 3z"/>
+        <line x1="12" y1="10" x2="12" y2="14"/>
+        <line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+    </button>
     <button id="theme-toggle" class="icon" title="Design wechseln"></button>
     <button id="settings-open" class="icon" title="Einstellungen">&#9881;</button>
   </div>
@@ -578,25 +596,71 @@ async function loadStatus() {
   if (gapEntries.length) {
     extra = '<span>Lücken: ' + gapEntries.map(([n, v]) => `${n} ${v.total_gaps_detected} (${v.total_gaps_recovered} wiederhergestellt)`).join(', ') + '</span>';
   }
-  const formatWarnings = Object.entries(s.sources).filter(([, v]) => v.format_mismatch_suspected).map(([n]) => n);
-  if (formatWarnings.length) {
-    extra += `<span style="color:var(--error)" title="Viele Zeilen passen nicht zum erwarteten Format -- vermutlich stimmt das in log_catalog.py hinterlegte Format nicht mehr">` +
-      `Format-Warnung: ${formatWarnings.join(', ')}</span>`;
-  }
-  const sourceErrors = Object.entries(s.sources).filter(([, v]) => v.last_error);
-  if (sourceErrors.length) {
-    extra += `<span style="color:var(--error)" title="${sourceErrors.map(([n, v]) => `${n}: ${v.last_error}`).join('; ')}">` +
-      `Nicht erreichbar: ${sourceErrors.map(([n]) => n).join(', ')}</span>`;
-  }
   statusEl.innerHTML =
     `<span>Quelle: ${s.source_url}</span>` +
     `<span>Abruf: alle ${s.fetch_interval_seconds}s</span>` +
     `<span>Aufbewahrung: ${s.retention_days}d</span>` +
     `<span>Zeilen: ${s.total_rows}</span>` +
     `<span>Letzter Abruf: ${s.last_fetch_at || '-'}</span>` +
-    (s.last_error ? `<span style="color:var(--error)">Fehler: ${s.last_error}</span>` : '') +
     extra;
+  updateAlerts(s);
 }
+
+// ---- Warnungen/Fehler ("!" Button) ----
+// Consolidates what used to be scattered inline spans in the status bar
+// (Fehler/Nicht erreichbar/Format-Warnung) into one quiet, on-demand
+// place to check -- no popups, badge only shows up when there's actually
+// something to see. Also the only place that surfaces actual ERROR-level
+// *log content* (recent_error_lines), not just fetch/parse health.
+const alertsBtn = document.getElementById('alerts-btn');
+let currentAlerts = [];
+
+function updateAlerts(s) {
+  const alerts = [];
+  if (s.last_error) {
+    alerts.push({ type: 'error', text: `Abruf fehlgeschlagen: ${s.last_error}` });
+  }
+  for (const [name, v] of Object.entries(s.sources)) {
+    if (v.last_error) {
+      alerts.push({ type: 'error', text: `${name}: nicht erreichbar (${v.last_error})` });
+    }
+    if (v.format_mismatch_suspected) {
+      alerts.push({ type: 'warning', text: `${name}: viele Zeilen passen nicht zum erwarteten Format` });
+    }
+    if (v.total_gaps_detected > v.total_gaps_recovered) {
+      alerts.push({
+        type: 'warning',
+        text: `${name}: ${v.total_gaps_detected - v.total_gaps_recovered} Lücke(n) nicht wiederhergestellt -- Zeilen wahrscheinlich verloren`,
+      });
+    }
+    if (v.recent_error_lines > 0) {
+      alerts.push({ type: 'warning', text: `${name}: ${v.recent_error_lines} ERROR-Zeile(n) in der letzten Stunde` });
+    }
+  }
+  currentAlerts = alerts;
+  alertsBtn.classList.toggle('has-alerts', alerts.length > 0);
+  alertsBtn.dataset.count = alerts.length;
+  alertsBtn.title = alerts.length
+    ? `${alerts.length} Warnung(en) -- klicken zum Anzeigen`
+    : 'Keine aktuellen Fehler oder Warnungen';
+}
+
+alertsBtn.onclick = () => {
+  if (!currentAlerts.length) {
+    showToast('Keine aktuellen Fehler oder Warnungen.', 'ok');
+    return;
+  }
+  const modal = openModal(`
+    <p>Aktuelle Fehler/Warnungen:</p>
+    <ul class="alerts-list"></ul>
+    <div class="modal-actions"><button data-action="close">Schließen</button></div>
+  `);
+  modal.overlay.querySelector('.alerts-list').innerHTML =
+    currentAlerts.map(a => `<li class="${a.type}">${escapeHtml(a.text)}</li>`).join('');
+  modal.overlay.addEventListener('click', (ev) => {
+    if (ev.target.dataset && ev.target.dataset.action === 'close') modal.close();
+  });
+};
 
 function restartLiveTimer() {
   if (liveTimer) clearInterval(liveTimer);

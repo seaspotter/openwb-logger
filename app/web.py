@@ -4,7 +4,7 @@ asyncpg -- no other storage."""
 from __future__ import annotations
 
 import gzip
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import httpx
@@ -280,10 +280,23 @@ async def api_status():
     cheap regardless of table size. approximate_row_count() uses Timescale's
     chunk statistics instead of a full scan; min(ts)/max(ts) are already
     index-optimized by Postgres (converted to an index scan for the
-    endpoint) since ts is the hypertable's time-partitioning column."""
+    endpoint) since ts is the hypertable's time-partitioning column.
+
+    recent_error_lines is bounded to the last hour, so it's a cheap,
+    chunk-excluded query regardless of total table size -- unlike the
+    other per-source fields here (all just in-memory fetcher state), this
+    is the one thing that reflects actual log *content* (ERROR-level
+    lines), not fetch/parse health, feeding the header's alerts button."""
     pool = get_pool()
     total = await pool.fetchval("SELECT approximate_row_count('log_lines')")
     stats = await pool.fetchrow("SELECT min(ts) AS oldest, max(ts) AS newest FROM log_lines")
+    recent_since = datetime.now() - timedelta(hours=1)
+    error_rows = await pool.fetch(
+        "SELECT source, count(*) AS n FROM log_lines WHERE level = 'ERROR' AND ts > $1 "
+        "GROUP BY source",
+        recent_since,
+    )
+    recent_errors = {r["source"]: r["n"] for r in error_rows}
     rt = await get_settings(pool)
     s = fetcher.status
     return {
@@ -297,6 +310,7 @@ async def api_status():
                 "total_gaps_recovered": st.total_gaps_recovered,
                 "format_mismatch_suspected": st.format_mismatch_suspected,
                 "last_error": st.last_error,
+                "recent_error_lines": recent_errors.get(name, 0),
             }
             for name, st in s.sources.items()
         },
