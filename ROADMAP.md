@@ -36,13 +36,6 @@ open an issue or just start working if something here matters to you.
 
 ## Next
 
-- [ ] Storage forecast in the alerts button: warn ahead of time when the
-      current ingestion rate and retention setting project past
-      available disk, instead of finding out the hard way. Fits the
-      existing alerts philosophy (quiet, in-app, no popups).
-- [ ] `get_storage_info` MCP tool exposing table size/row count/per-source
-      volume, so checking what's using disk doesn't require raw SQL.
-
 ## Someday / maybe
 
 - [ ] Multi-openWB support (more than one device polled into the same DB)

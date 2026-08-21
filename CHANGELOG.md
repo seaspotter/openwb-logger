@@ -7,6 +7,11 @@ what that means in practice for this project.
 ## [Unreleased]
 
 ### Added
+- MCP `get_storage_info` tool: total row count, oldest/newest timestamp,
+  a table/index/toast/total byte breakdown of the whole `log_lines`
+  hypertable, per-source row counts, and the current retention setting --
+  answers "how much disk is my log data using" without hand-writing SQL,
+  reusing the exact queries used to actually diagnose that live tonight.
 - "Exportierte Datei komprimieren (.gz)" checkbox in the settings panel —
   a browser-local preference (like theme/sort order, not a server-side
   setting), so "Exportieren" downloads a real `.gz` file instead of plain

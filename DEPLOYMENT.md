@@ -196,13 +196,15 @@ reachable beyond your LAN, put it behind an authenticated reverse proxy.
 
 The app also serves an [MCP](https://modelcontextprotocol.io) server at
 `/mcp` (Streamable HTTP transport), alongside the web UI, on the same
-port. It exposes three tools —`search_logs` (day/range/level/source/text
+port. It exposes four tools — `search_logs` (day/range/level/source/text
 filters), `tail_logs` (latest N lines), `export_logs` (everything
-matching a filter, as plain text) — and an `openwb://sources` resource
-listing valid source names, mirroring what the web UI itself can do,
-nothing more. Point any MCP client (Claude Desktop, Claude Code, etc.) at
-`http://<host>:8080/mcp` — consult that client's own docs for how it wants
-an HTTP-transport server configured, since that varies by client.
+matching a filter, as plain text), `get_storage_info` (row count, byte
+breakdown, per-source counts, retention setting — the disk-usage picture
+without hand-writing SQL) — and an `openwb://sources` resource listing
+valid source names. Point any MCP client (Claude Desktop, Claude Code,
+etc.) at `http://<host>:8080/mcp` — consult that client's own docs for
+how it wants an HTTP-transport server configured, since that varies by
+client.
 
 **No separate authentication** — same no-auth, LAN-trust model as the
 rest of the app (see below). This doesn't expose anything the web
