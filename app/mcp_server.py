@@ -16,8 +16,9 @@ from datetime import date, datetime
 
 from mcp.server.fastmcp import FastMCP
 
-from .db import get_pool
+from .db import RAW_EXPR, get_pool
 from .log_catalog import CATALOG
+from .runtime_settings import get_settings
 from .web import _export_body, _filters
 
 # streamable_http_path="/" so mounting this server's ASGI app at "/mcp" on
@@ -66,7 +67,7 @@ async def search_logs(
     limit = min(limit, SEARCH_MAX_LIMIT)
     where, params = _filters(day, search, level, source, from_, to)
     rows = await pool.fetch(
-        f"SELECT id, ts, level, logger_name, source, raw FROM log_lines {where} "
+        f"SELECT id, ts, level, logger_name, source, {RAW_EXPR} AS raw FROM log_lines {where} "
         f"ORDER BY ts, id LIMIT ${len(params) + 1}",
         *params, limit,
     )
@@ -86,7 +87,7 @@ async def tail_logs(
     n = min(n, TAIL_MAX_N)
     where, params = _filters(None, None, level, source)
     rows = await pool.fetch(
-        f"SELECT id, ts, level, logger_name, source, raw FROM log_lines {where} "
+        f"SELECT id, ts, level, logger_name, source, {RAW_EXPR} AS raw FROM log_lines {where} "
         f"ORDER BY ts DESC, id DESC LIMIT ${len(params) + 1}",
         *params, n,
     )
@@ -109,6 +110,37 @@ async def export_logs(
     since an unbounded query can return a very large amount of text."""
     pool = get_pool()
     return await _export_body(pool, day, search, level, source, from_, to)
+
+
+@mcp.tool()
+async def get_storage_info() -> dict:
+    """Current storage footprint: total row count, oldest/newest
+    timestamp, byte breakdown (table/index/toast/total) of the whole
+    `log_lines` hypertable, per-source row counts, and the current
+    retention setting. For answering "how much disk is my log data
+    using" without hand-writing SQL against the database directly."""
+    pool = get_pool()
+    rt = await get_settings(pool)
+    total_rows = await pool.fetchval("SELECT approximate_row_count('log_lines')")
+    stats = await pool.fetchrow("SELECT min(ts) AS oldest, max(ts) AS newest FROM log_lines")
+    size = await pool.fetchrow(
+        "SELECT table_bytes, index_bytes, toast_bytes, total_bytes "
+        "FROM hypertable_detailed_size('log_lines')"
+    )
+    per_source = await pool.fetch(
+        "SELECT source, count(*) AS n FROM log_lines GROUP BY source ORDER BY n DESC"
+    )
+    return {
+        "total_rows": total_rows,
+        "oldest": stats["oldest"].isoformat() if stats["oldest"] else None,
+        "newest": stats["newest"].isoformat() if stats["newest"] else None,
+        "table_bytes": size["table_bytes"],
+        "index_bytes": size["index_bytes"],
+        "toast_bytes": size["toast_bytes"],
+        "total_bytes": size["total_bytes"],
+        "retention_days": rt["retention_days"],
+        "rows_per_source": {r["source"]: r["n"] for r in per_source},
+    }
 
 
 @mcp.resource("openwb://sources")

@@ -37,9 +37,10 @@ nichts mehr gibt.
 ## Rechte Seite
 
 - **Exportieren** — lädt genau den aktuell aktiven Filter (Quelle,
-  Tag-oder-Zeitraum, Level, Suche) als Textdatei herunter. Deaktiviert
-  während **Live** aktiv ist — vorher einen Tag/Zeitraum wählen oder
-  **Live** abschalten.
+  Tag-oder-Zeitraum, Level, Suche) als Textdatei herunter (oder als
+  komprimierte `.gz`-Datei, siehe "Exportierte Datei komprimieren" unten).
+  Deaktiviert während **Live** aktiv ist — vorher einen Tag/Zeitraum
+  wählen oder **Live** abschalten.
 - **An Paste senden** — wie Exportieren, aber lädt stattdessen zu openWBs
   eigenem Paste-Dienst hoch und zeigt einen Link zum Teilen (landet auch
   in der Zwischenablage, falls der Browser das zulässt).
@@ -93,6 +94,11 @@ nichts mehr gibt.
 - **Zeilen pro Seite** — wie viele Zeilen auf einmal geladen werden (gilt
   für "Heute (live)" und normales Blättern; Zeitraum hat eine eigene,
   höhere Grenze, siehe oben).
+- **Exportierte Datei komprimieren (.gz)** — lädt "Exportieren" als
+  komprimierte `.gz`-Datei statt als Textdatei herunter (nützlich bei
+  großen Exporten). Eine reine Browser-Einstellung (im Browser
+  gespeichert), betrifft nicht "An Paste senden" — der Upload dorthin wird
+  ohnehin immer komprimiert übertragen, unabhängig von dieser Einstellung.
 - **Paste-Upload-URL / Paste-Anzeige-URL** — wohin "An Paste senden"
   hochlädt bzw. wie der angezeigte Link aufgebaut wird. Nur ändern, falls
   ein anderer Paste-Dienst genutzt werden soll.

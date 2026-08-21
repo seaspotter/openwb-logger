@@ -6,6 +6,87 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-21
+
+### Added
+- MCP `get_storage_info` tool: total row count, oldest/newest timestamp,
+  a table/index/toast/total byte breakdown of the whole `log_lines`
+  hypertable, per-source row counts, and the current retention setting --
+  answers "how much disk is my log data using" without hand-writing SQL,
+  reusing the exact queries used to actually diagnose that live tonight.
+- "Exportierte Datei komprimieren (.gz)" checkbox in the settings panel —
+  a browser-local preference (like theme/sort order, not a server-side
+  setting), so "Exportieren" downloads a real `.gz` file instead of plain
+  text. Sends `Content-Type: application/gzip` rather than
+  `Content-Encoding: gzip`, since the latter is transparently decompressed
+  by the browser before saving, defeating the point of a smaller
+  download. Unrelated to "An Paste senden", which already always gzips
+  its upload regardless of this setting.
+- Alerts button now supports acknowledging: opening the modal remembers
+  exactly which alert texts you've seen (persisted in `localStorage`), so
+  the badge goes quiet again afterward instead of staying lit for a
+  rolling condition (e.g. "X ERROR-Zeile(n) in der letzten Stunde") that
+  never fully clears on its own. Lights back up on its own if anything
+  actually changes -- a new alert appears, or an existing one's count
+  changes (a different string than what was acknowledged) -- no
+  time-based re-alarm needed.
+
+### Changed
+- `docker-compose.yml`'s `app` service no longer needs a hand-assembled
+  `DATABASE_URL` -- it now gets the same `POSTGRES_PASSWORD` variable the
+  `timescaledb` service already uses, and `app/config.py` builds the
+  connection string itself (user/db/host/port are fixed values matching
+  that service, not something a standard deployment needs to vary). Only
+  one place to set the password now instead of two copies of the same
+  secret to keep in sync -- a real mismatch between them (rather than a
+  bad password outright) is exactly what caused an authentication failure
+  while setting up a NAS/Portainer deployment. `DATABASE_URL` still works
+  and still wins outright if set, as an escape hatch for anything that
+  deviates from the standard setup (local dev, a differently-named host).
+- Dropped "all-in-one image" from `ROADMAP.md` -- considered and decided
+  against. The current two-service `docker-compose.yml` already covers
+  what a bundled image would have, without giving up independent
+  `docker compose pull` upgrades of the database image. Documented as a
+  deliberate choice in `DEPLOYMENT.md` rather than an unstarted item.
+- `DEPLOYMENT.md` gained a generic "Running via Portainer (NAS, etc.)"
+  section (prebuilt image, bind-mount the database data wherever you
+  want, no self-update since there's no git checkout to pull) -- written
+  up generically after actually working through a real NAS/Portainer
+  deployment.
+- Dropped the `raw` column from `log_lines`. For a DETAILED-format line, it
+  stored the entire original text -- timestamp, logger, line number,
+  level, thread, *and* message -- even though all but the message are
+  already stored as their own columns (measured ~40% of that column's
+  bytes as pure duplication on a real 1M+ row instance). The exact
+  original line is now reconstructed on read from the structured columns
+  instead (`RAW_EXPR` in `app/db.py`), so display, export, and search
+  ("Suchen") are all byte-for-byte unchanged -- verified against a real
+  Postgres instance (DETAILED/SHORT/continuation lines, and a simulated
+  upgrade from the old schema) before landing this, including one real
+  bug caught that way: plain `to_char()` isn't IMMUTABLE, so it can't be
+  used directly in the expression index backing search -- fixed with a
+  small IMMUTABLE wrapper function instead.
+
+### Fixed
+- Changing the level/source/search filter while live-tailing "Heute
+  (live)" silently jumped to the start of the day (ascending order from
+  midnight) instead of staying near "now": turning off Live resets the
+  paging cursor to null, but the view then fell through to the plain
+  day-paging branch with no cursor, which defaults to the first page.
+  Pre-existing since the original keyset-pagination rewrite, not a
+  regression from anything recent -- confirmed via `git log -S` before
+  fixing. Now shows the most recent matching lines instead (the same
+  "tail" query live-follow itself uses) whenever there's no explicit
+  paging cursor and you're on "today", independent of whether Live is
+  still checked -- only the *continuous* 5s auto-refresh, and disabling
+  export while it's active, still depend on the Live checkbox itself.
+- Settings panel's "Prüfen"/"Update" buttons were only greyed out, not
+  hidden, on a deployment with no bind-mounted git checkout to update in
+  place (e.g. a plain `image:` deployment, as opposed to `build: .`) --
+  permanently dead buttons sitting there regardless of deployment type.
+  Now hidden entirely in that case (`DEPLOYMENT.md` already documented
+  this as the intended behavior; the frontend just didn't match it).
+
 ## [0.1.0] - 2026-08-21
 
 ### Added

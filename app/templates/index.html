@@ -219,6 +219,9 @@
       <input id="s-page-size" type="number" min="100" max="20000" step="100">
     </div>
     <div class="field">
+      <label class="check"><input type="checkbox" id="s-export-gzip"> Exportierte Datei komprimieren (.gz)</label>
+    </div>
+    <div class="field">
       <label class="check"><input type="checkbox" id="s-paste-custom"> Eigene Paste-Instanz verwenden</label>
       <div id="s-paste-custom-fields" style="display:none; margin-top:8px;">
         <label for="s-paste-upload">Paste-Upload-URL</label>
@@ -419,6 +422,18 @@ sortToggleBtn.onclick = () => {
   applySortTitle();
   render(lastLines);
 };
+
+// ---- Export-Kompression (.gz) ----
+// A personal browsing preference (like sort order/theme above), not a
+// server-side setting -- purely affects what the "Exportieren" button
+// requests, so localStorage fits better than a runtime_settings round
+// trip to the server. Paste upload already gzips the HTTP transfer itself
+// regardless of this (see api_export_paste in web.py) -- unrelated,
+// unaffected by this checkbox.
+const EXPORT_GZIP_KEY = 'openwb-logger-export-gzip';
+const exportGzipEl = document.getElementById('s-export-gzip');
+exportGzipEl.checked = localStorage.getItem(EXPORT_GZIP_KEY) === 'true';
+exportGzipEl.onchange = () => localStorage.setItem(EXPORT_GZIP_KEY, exportGzipEl.checked);
 let lastLines = [];
 
 // ---- Design (hell/dunkel) ----
@@ -541,10 +556,18 @@ async function load() {
   const customRange = hasCustomRange();
   const isToday = !customRange && dayEl.value === '__today__';
   const today = new Date().toISOString().slice(0, 10);
-  const liveTail = isToday && liveEl.checked;
+  const liveFollowing = isToday && liveEl.checked;
+  // Show the most recent lines whenever there's no explicit paging cursor
+  // and we're on "today" -- covers actual live-follow *and* the moment
+  // Live just turned off (level/source/search change, scrolling away, ...)
+  // with nothing paged yet. Without this, changing e.g. the level filter
+  // while live-tailing fell through to the plain day-view branch below
+  // with no cursor, which defaults to ascending-from-midnight -- silently
+  // dumping you at the start of the day instead of staying near "now".
+  const showTail = isToday && !pendingCursor;
 
   const extra = { limit: customRange ? RANGE_LIMIT : LIMIT };
-  if (liveTail) {
+  if (showTail) {
     extra.day = today;
     extra.tail = 'true';
   } else if (customRange) {
@@ -574,7 +597,7 @@ async function load() {
     if (data.has_more_after) {
       rangeEl.textContent += ` — auf die ersten ${RANGE_LIMIT} begrenzt, Zeitraum eingrenzen für den Rest`;
     }
-  } else if (liveTail) {
+  } else if (showTail) {
     prevBtn.disabled = !data.has_more_before;
     nextBtn.disabled = true;
   } else {
@@ -582,10 +605,14 @@ async function load() {
     nextBtn.disabled = !data.has_more_after;
   }
 
-  document.getElementById('export').disabled = liveTail;
-  pasteExportBtn.disabled = liveTail;
+  // Tied to liveFollowing, not showTail: a paused tail snapshot (Live just
+  // turned off, e.g. by changing the level filter) is a static view like
+  // any other, not "a constantly-moving target" -- only actual continuous
+  // auto-refresh makes exporting nonsensical.
+  document.getElementById('export').disabled = liveFollowing;
+  pasteExportBtn.disabled = liveFollowing;
 
-  if (liveTail) logEl.scrollTop = sortDesc ? 0 : logEl.scrollHeight;
+  if (showTail) logEl.scrollTop = sortDesc ? 0 : logEl.scrollHeight;
 }
 
 async function loadStatus() {
@@ -614,6 +641,13 @@ async function loadStatus() {
 // *log content* (recent_error_lines), not just fetch/parse health.
 const alertsBtn = document.getElementById('alerts-btn');
 let currentAlerts = [];
+// Acknowledging: once you've opened the modal and seen the current
+// alerts, the badge goes quiet for exactly that set of texts -- persisted
+// so it survives a reload. Anything that changes (a new alert appears, or
+// an existing one's count changes -- "11 ERROR-Zeile(n)" is a different
+// string than "15 ERROR-Zeile(n)") no longer matches, so it lights back
+// up on its own without needing a time-based re-alarm.
+let acknowledgedAlerts = JSON.parse(localStorage.getItem('acknowledgedAlerts') || '[]');
 
 function updateAlerts(s) {
   const alerts = [];
@@ -638,11 +672,14 @@ function updateAlerts(s) {
     }
   }
   currentAlerts = alerts;
-  alertsBtn.classList.toggle('has-alerts', alerts.length > 0);
-  alertsBtn.dataset.count = alerts.length;
-  alertsBtn.title = alerts.length
-    ? `${alerts.length} Warnung(en) -- klicken zum Anzeigen`
-    : 'Keine aktuellen Fehler oder Warnungen';
+  const unseen = alerts.filter(a => !acknowledgedAlerts.includes(a.text));
+  alertsBtn.classList.toggle('has-alerts', unseen.length > 0);
+  alertsBtn.dataset.count = unseen.length;
+  alertsBtn.title = !alerts.length
+    ? 'Keine aktuellen Fehler oder Warnungen'
+    : unseen.length
+    ? `${unseen.length} neue Warnung(en) -- klicken zum Anzeigen`
+    : `${alerts.length} Warnung(en) (bereits gesehen) -- klicken zum Anzeigen`;
 }
 
 alertsBtn.onclick = () => {
@@ -650,6 +687,10 @@ alertsBtn.onclick = () => {
     showToast('Keine aktuellen Fehler oder Warnungen.', 'ok');
     return;
   }
+  acknowledgedAlerts = currentAlerts.map(a => a.text);
+  localStorage.setItem('acknowledgedAlerts', JSON.stringify(acknowledgedAlerts));
+  alertsBtn.classList.remove('has-alerts');
+  alertsBtn.dataset.count = 0;
   const modal = openModal(`
     <p>Aktuelle Fehler/Warnungen:</p>
     <ul class="alerts-list"></ul>
@@ -722,7 +763,9 @@ function exportParams() {
 }
 
 document.getElementById('export').onclick = () => {
-  window.open('/api/logs/export?' + exportParams().toString(), '_blank');
+  const p = exportParams();
+  if (exportGzipEl.checked) p.set('gzip', 'true');
+  window.open('/api/logs/export?' + p.toString(), '_blank');
 };
 
 const pasteExportBtn = document.getElementById('paste-export');
@@ -856,13 +899,11 @@ async function loadUpdateInfo() {
   const res = await fetch('/api/update/version');
   const data = await res.json();
   updateCommitEl.textContent = data.current_commit ? data.current_commit : '-';
-  updateBtn.disabled = !data.available;
-  updateCheckBtn.disabled = !data.available;
-  const title = data.available
-    ? ''
-    : 'Kein Git-Checkout unter /app (Bind-Mount fehlt?) — siehe DEPLOYMENT.md';
-  updateBtn.title = title;
-  updateCheckBtn.title = title;
+  // Hidden, not just disabled, when there's no bind-mounted git checkout to
+  // update in place (e.g. a plain `image:` deployment) -- a permanently
+  // dead button is just clutter, not a useful affordance to grey out.
+  updateBtn.style.display = data.available ? '' : 'none';
+  updateCheckBtn.style.display = data.available ? '' : 'none';
 }
 
 updateCheckBtn.onclick = async () => {
