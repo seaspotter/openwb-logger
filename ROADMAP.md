@@ -27,6 +27,14 @@ open an issue or just start working if something here matters to you.
 
 ## Next
 
+- [ ] MCP server: expose the collected logs (search, tail, export) as MCP
+      tools/resources so an AI assistant (e.g. Claude) can query openWB's
+      history directly instead of through the web UI
+- [ ] Alerts indicator instead of a full webhook/notification system: a
+      small "!" button/badge in the UI aggregating current errors/
+      warnings (fetch failures, format-mismatch, gaps, ERROR-level lines)
+      in one place, quiet by default — no popups, no external
+      notifications, just something to check when you want to.
 - [ ] All-in-one image: bundle the app and TimescaleDB into a single
       container/image for simpler distribution, instead of the current
       two-service docker-compose setup. The infra-vs-runtime-settings split
@@ -37,11 +45,10 @@ open an issue or just start working if something here matters to you.
 
 ## Someday / maybe
 
-- [ ] MCP server: expose the collected logs (search, tail, export) as MCP
-      tools/resources so an AI assistant (e.g. Claude) can query openWB's
-      history directly instead of through the web UI
-- [ ] Simple chart/dashboard view (e.g. charge sessions over time, error
-      rate) — low priority, out of scope for a "logger"
-- [ ] Alerting on ERROR-level lines (webhook/notification)
 - [ ] Multi-openWB support (more than one device polled into the same DB)
-- [ ] Home Assistant integration
+      — distant future, not currently planned work
+
+## Not planned
+
+- Chart/dashboard view — out of scope for a "logger"
+- Home Assistant integration
