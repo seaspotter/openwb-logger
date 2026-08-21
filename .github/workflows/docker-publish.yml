@@ -1,15 +1,22 @@
 name: Publish Docker image
 
-# Builds the image from the Dockerfile for amd64, arm64, and arm/v7 (Pi
-# Zero 2/3/4 32-bit, and other 32-bit ARM boards) and pushes it to GitHub
-# Container Registry -- a documented alternative in DEPLOYMENT.md to
-# `docker compose up -d --build`, useful mainly for a quick `docker run`
-# test or on a board where building locally would be slow. The primary,
-# documented deployment path stays `build: .` with the repo bind-mounted
-# (see docker-compose.yml), since that's what the in-app self-update
-# button (app/updater.py) assumes. Runs on every push to main (keeps the
-# `latest` tag in step with what a plain `git pull` on main would give
-# you) and on version tags (pins a specific release).
+# Builds the image from the Dockerfile for amd64 and arm64 (covers every
+# current-gen board -- Pi 3/4/5 all default to 64-bit OS images now) and
+# pushes it to GitHub Container Registry -- a documented alternative in
+# DEPLOYMENT.md to `docker compose up -d --build`, useful mainly for a
+# quick `docker run` test or on a board where building locally would be
+# slow. No arm/v7 (32-bit): it's the only platform without prebuilt
+# wheels for some of our compiled dependencies (asyncpg, cffi via
+# cryptography), needing a source build under slow QEMU emulation with
+# its own set of native headers to get right (missed libffi-dev entirely
+# on the first attempt) -- not worth it for boards that are increasingly
+# rare and can still just `docker compose up -d --build` locally like
+# before multi-arch existed. The primary, documented deployment path
+# stays `build: .` with the repo bind-mounted (see docker-compose.yml),
+# since that's what the in-app self-update button (app/updater.py)
+# assumes. Runs on every push to main (keeps the `latest` tag in step
+# with what a plain `git pull` on main would give you) and on version
+# tags (pins a specific release).
 
 on:
   push:
@@ -55,7 +62,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

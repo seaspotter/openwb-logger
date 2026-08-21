@@ -14,7 +14,7 @@ in the `timescale_data_pg18` named volume) and `app` (this tool, port
 
 `build: .` (building locally) is the documented, primary path — it's what
 the in-app self-update button assumes (see below). A prebuilt multi-arch
-image (amd64/arm64/arm-v7) is also published to
+image (amd64/arm64) is also published to
 `ghcr.io/seaspotter/openwb-logger` on every release, mainly useful for a
 quick `docker run` test or a board where building locally is slow; if you
 use it instead of `build: .`, self-update won't have anything to update
