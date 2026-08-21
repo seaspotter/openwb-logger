@@ -35,9 +35,14 @@ def _run(*args: str, timeout: int = 60) -> tuple[int, str, str]:
 
 def get_current_commit() -> str | None:
     """Local-only (no network), cheap enough to call on every settings-panel
-    open -- unlike check_for_update() below, which does a git fetch."""
+    open -- unlike check_for_update() below, which does a git fetch. Falls
+    back to OPENWB_LOGGER_IMAGE_VERSION (baked in at build time, see
+    Dockerfile) when there's no live git checkout to describe, so a plain
+    image deployment still shows something meaningful instead of "-"."""
     code, out, _ = _run("git", "-C", REPO_DIR, "rev-parse", "--short", "HEAD")
-    return out if code == 0 else None
+    if code == 0:
+        return out
+    return os.environ.get("OPENWB_LOGGER_IMAGE_VERSION") or None
 
 
 def check_for_update() -> dict:

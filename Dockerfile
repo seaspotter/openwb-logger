@@ -1,3 +1,17 @@
+# Multi-stage so the compiler needed to build asyncpg on linux/arm/v7 (it
+# has no prebuilt wheel for that platform, only amd64/arm64 -- checked
+# against PyPI) doesn't end up in the runtime image. uvicorn's own C
+# extensions (uvloop, httptools, the "standard" extra) are sidestepped
+# entirely instead of compiled: this app doesn't use anything they add,
+# and building them under QEMU emulation for arm/v7 in CI would be slow
+# for no benefit on a low-traffic LAN tool -- see requirements.txt.
+FROM python:3.12-slim AS builder
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends gcc python3-dev \
+    && rm -rf /var/lib/apt/lists/*
+COPY requirements.txt .
+RUN pip install --no-cache-dir --user -r requirements.txt
+
 FROM python:3.12-slim
 
 WORKDIR /app
@@ -10,10 +24,18 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends git tzdata \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY --from=builder /root/.local /root/.local
+ENV PATH=/root/.local/bin:$PATH
 
 COPY app ./app
+
+# Baked-in fallback for the settings panel's version display (GET
+# /api/update/version) when there's no live git checkout at /app to read a
+# commit from -- e.g. a plain `docker run`/registry-image deployment
+# without docker-compose.yml's repo bind-mount. Set from CI, see
+# .github/workflows/docker-publish.yml.
+ARG VERSION=unknown
+ENV OPENWB_LOGGER_IMAGE_VERSION=$VERSION
 
 # Runs as root: the bind-mounted repo checkout (see docker-compose.yml) is
 # owned by whatever UID/GID it has on the Docker host, and self-update's

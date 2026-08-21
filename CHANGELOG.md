@@ -110,6 +110,19 @@ No formal releases yet — entries are grouped by what shipped, not by tag.
   based on those flags instead of a total.
 
 ### Added
+- Multi-arch image publishing: `.github/workflows/docker-publish.yml`
+  builds and pushes `ghcr.io/seaspotter/openwb-logger` for amd64, arm64,
+  and arm/v7 on every push to `main` and on version tags. `build: .`
+  stays the documented, primary deployment path (self-update assumes it);
+  the published image is a convenience alternative — see DEPLOYMENT.md.
+  Required two Dockerfile changes to actually work on arm/v7: `asyncpg`
+  has no prebuilt wheel for that platform (only amd64/arm64, checked
+  against PyPI), so the build is now multi-stage (a `gcc`/`python3-dev`
+  stage compiles it, the runtime image doesn't carry the compiler); and
+  `uvicorn[standard]`'s C extensions (`uvloop`/`httptools`) are dropped
+  for plain `uvicorn` instead of also compiled, since nothing here uses
+  what they add and building them under arm/v7 QEMU emulation in CI would
+  just be slow for no benefit.
 - [MANUAL.md](MANUAL.md): a short reference for the web UI itself
   (toolbar controls, status bar, settings panel), linked from
   `README.md`. `README.md` itself also refreshed — it had drifted behind

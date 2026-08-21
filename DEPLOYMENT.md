@@ -12,6 +12,15 @@ This starts two services: `timescaledb` (TimescaleDB on Postgres 18, data
 in the `timescale_data_pg18` named volume) and `app` (this tool, port
 8080).
 
+`build: .` (building locally) is the documented, primary path — it's what
+the in-app self-update button assumes (see below). A prebuilt multi-arch
+image (amd64/arm64/arm-v7) is also published to
+`ghcr.io/seaspotter/openwb-logger` on every release, mainly useful for a
+quick `docker run` test or a board where building locally is slow; if you
+use it instead of `build: .`, self-update won't have anything to update
+in place (no bind-mounted git checkout) and you'd `docker compose pull`
+for new versions instead.
+
 ## Running on Proxmox (Ubuntu Server)
 
 Two options for the container itself; everything after that is identical
