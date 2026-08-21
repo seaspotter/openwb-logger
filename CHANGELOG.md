@@ -7,6 +7,18 @@ what that means in practice for this project.
 ## [Unreleased]
 
 ### Fixed
+- Changing the level/source/search filter while live-tailing "Heute
+  (live)" silently jumped to the start of the day (ascending order from
+  midnight) instead of staying near "now": turning off Live resets the
+  paging cursor to null, but the view then fell through to the plain
+  day-paging branch with no cursor, which defaults to the first page.
+  Pre-existing since the original keyset-pagination rewrite, not a
+  regression from anything recent -- confirmed via `git log -S` before
+  fixing. Now shows the most recent matching lines instead (the same
+  "tail" query live-follow itself uses) whenever there's no explicit
+  paging cursor and you're on "today", independent of whether Live is
+  still checked -- only the *continuous* 5s auto-refresh, and disabling
+  export while it's active, still depend on the Live checkbox itself.
 - Settings panel's "Prüfen"/"Update" buttons were only greyed out, not
   hidden, on a deployment with no bind-mounted git checkout to update in
   place (e.g. a plain `image:` deployment, as opposed to `build: .`) --

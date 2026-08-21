@@ -541,10 +541,18 @@ async function load() {
   const customRange = hasCustomRange();
   const isToday = !customRange && dayEl.value === '__today__';
   const today = new Date().toISOString().slice(0, 10);
-  const liveTail = isToday && liveEl.checked;
+  const liveFollowing = isToday && liveEl.checked;
+  // Show the most recent lines whenever there's no explicit paging cursor
+  // and we're on "today" -- covers actual live-follow *and* the moment
+  // Live just turned off (level/source/search change, scrolling away, ...)
+  // with nothing paged yet. Without this, changing e.g. the level filter
+  // while live-tailing fell through to the plain day-view branch below
+  // with no cursor, which defaults to ascending-from-midnight -- silently
+  // dumping you at the start of the day instead of staying near "now".
+  const showTail = isToday && !pendingCursor;
 
   const extra = { limit: customRange ? RANGE_LIMIT : LIMIT };
-  if (liveTail) {
+  if (showTail) {
     extra.day = today;
     extra.tail = 'true';
   } else if (customRange) {
@@ -574,7 +582,7 @@ async function load() {
     if (data.has_more_after) {
       rangeEl.textContent += ` — auf die ersten ${RANGE_LIMIT} begrenzt, Zeitraum eingrenzen für den Rest`;
     }
-  } else if (liveTail) {
+  } else if (showTail) {
     prevBtn.disabled = !data.has_more_before;
     nextBtn.disabled = true;
   } else {
@@ -582,10 +590,14 @@ async function load() {
     nextBtn.disabled = !data.has_more_after;
   }
 
-  document.getElementById('export').disabled = liveTail;
-  pasteExportBtn.disabled = liveTail;
+  // Tied to liveFollowing, not showTail: a paused tail snapshot (Live just
+  // turned off, e.g. by changing the level filter) is a static view like
+  // any other, not "a constantly-moving target" -- only actual continuous
+  // auto-refresh makes exporting nonsensical.
+  document.getElementById('export').disabled = liveFollowing;
+  pasteExportBtn.disabled = liveFollowing;
 
-  if (liveTail) logEl.scrollTop = sortDesc ? 0 : logEl.scrollHeight;
+  if (showTail) logEl.scrollTop = sortDesc ? 0 : logEl.scrollHeight;
 }
 
 async function loadStatus() {
