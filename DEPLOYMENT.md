@@ -103,49 +103,6 @@ existing data takes a moment (and briefly locks each chunk while it does).
 Every restart after that is unaffected — `IF NOT EXISTS` skips rebuilding
 them.
 
-### Migrating an existing deployment from Postgres 16 to 18
-
-`docker-compose.yml` moved from `timescale/timescaledb:latest-pg16` to
-`latest-pg18` (Postgres has no formal LTS — every major version gets an
-equal 5-year support window from release; pg18 is the newest one
-TimescaleDB currently publishes images for, EOL not until November 2030
-vs. pg16's November 2028) and from the `timescale_data` volume to
-`timescale_data_pg18`. That volume rename is deliberate: Postgres can't
-start a newer major version's binary against an older major version's
-data directory in place, so if the name hadn't changed, upgrading an
-existing deployment would fail to start outright. With the rename, a
-plain `git pull && docker compose up -d --build` instead just gets a
-fresh, empty pg18 database — a working app with no history yet — while
-your old `timescale_data` volume is left completely untouched. Migrating
-the actual data into the new volume is a separate, deliberate step:
-
-```bash
-# 1. Take a dump from the CURRENTLY RUNNING (pg16) stack, before pulling
-#    or touching anything -- this doubles as your backup.
-docker compose exec -T timescaledb pg_dump -U openwb_logger -d openwb_logger -Fc \
-  > openwb_logger_pg16_backup.dump
-
-# 2. Pull the new code and bring up the new stack. This creates the fresh
-#    pg18 volume and, importantly, the app's own idempotent schema
-#    bootstrap (app/db.py) creates the hypertable/indexes on it
-#    automatically -- so the target schema already exists and matches.
-git pull
-docker compose up -d --build
-
-# 3. Give the app a moment to finish that startup bootstrap, then stop it
-#    (so nothing polls/writes while restoring) and restore DATA ONLY --
-#    not the schema, which already exists and would just conflict.
-docker compose stop app
-docker compose exec -T timescaledb pg_restore -U openwb_logger -d openwb_logger \
-  --data-only --disable-triggers < openwb_logger_pg16_backup.dump
-docker compose start app
-```
-
-Then open the UI and check the row count and recent history look right
-before doing anything else (like removing the old volume — which you
-don't have to; leaving an unused Docker volume around costs nothing but
-disk space, and it's your fallback if something looks wrong).
-
 ### Self-update from the UI
 
 The settings panel has an "Update" button that runs `git pull --ff-only`

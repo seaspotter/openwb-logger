@@ -58,11 +58,14 @@ what that means in practice for this project.
 - TimescaleDB moved from Postgres 16 to 18 (newest major version it
   currently ships images for; Postgres has no LTS concept, every major
   gets an equal 5-year support window — pg18's runs to Nov 2030 vs.
-  pg16's Nov 2028). The data volume is renamed `timescale_data` →
-  `timescale_data_pg18` specifically so upgrading an existing deployment
-  gets a fresh empty pg18 database instead of failing to start against an
-  incompatible pg16 data directory — see DEPLOYMENT.md for the
-  dump/restore steps to actually migrate existing data across.
+  pg16's Nov 2028) before this project's first release, so there's no
+  public pg16 install base anyone needs to migrate from — every install
+  from here on just gets pg18 directly. The data volume is named
+  `timescale_data_pg18` rather than `timescale_data` regardless, on the
+  general principle that a Postgres major-version bump should always get
+  a fresh volume name (mounting a newer major version's image against an
+  older one's data directory fails outright), not because of anything
+  specific to this move.
 - Default fetch interval 600s → 120s and default retention 30d → 7d for
   *new* installs (`DEFAULT_*` in `app/runtime_settings.py`; only seeded
   once, on first boot when no settings row exists yet, so this doesn't
