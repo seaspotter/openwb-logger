@@ -26,8 +26,8 @@ _KEY = "config"
 # user is expected to confirm/correct in the settings panel.
 DEFAULT_OPENWB_BASE_URL = "http://openwb"
 DEFAULT_OPENWB_RAMDISK_PATH = "/openWB/ramdisk"
-DEFAULT_FETCH_INTERVAL_SECONDS = 600  # 10 min
-DEFAULT_RETENTION_DAYS = 30
+DEFAULT_FETCH_INTERVAL_SECONDS = 120  # 2 min -- most sources rotate faster than the old 10 min default
+DEFAULT_RETENTION_DAYS = 7
 DEFAULT_PAGE_SIZE = 5000
 # openWB's own pastebin, https://github.com/lucko/paste self-hosted --
 # verified against the live instance: the frontend at paste.openwb.de

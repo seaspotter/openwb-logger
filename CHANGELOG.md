@@ -42,6 +42,11 @@ No formal releases yet — entries are grouped by what shipped, not by tag.
   (system preference only decides the very first, pre-`localStorage` load).
 
 ### Changed
+- Default fetch interval 600s → 120s and default retention 30d → 7d for
+  *new* installs (`DEFAULT_*` in `app/runtime_settings.py`; only seeded
+  once, on first boot when no settings row exists yet, so this doesn't
+  touch already-configured deployments). Most sources rotate faster than
+  the old 10-minute default.
 - Branding pass: a small inline-SVG logo (used as both the favicon and a
   header mark), the header title now reads "openWB Logger" with "openWB"
   in accent color, and the light/dark toggle is a proper sun/moon icon

@@ -62,9 +62,10 @@ there's nothing left here to set before first start at all.
 | `DATABASE_URL` | `postgresql://openwb_logger:openwb_logger@localhost:5432/openwb_logger` | Postgres/TimescaleDB connection string (docker-compose sets this for you from `POSTGRES_PASSWORD`; only relevant if you're not using docker-compose) |
 
 On first start, the app seeds its settings with hardcoded fallback
-defaults (`http://openwb`, `/openWB/ramdisk`, 600s, 30 days — see
-`DEFAULT_*` in `app/runtime_settings.py`) and only `main.log` enabled.
-Open the settings panel and correct them for your setup.
+defaults (`http://openwb`, `/openWB/ramdisk`, 120s poll interval, 7 days
+retention — see `DEFAULT_*` in `app/runtime_settings.py`) and only
+`main.log` enabled. Open the settings panel and correct them for your
+setup.
 
 ## State and backups
 
