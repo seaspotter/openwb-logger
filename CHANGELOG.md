@@ -6,6 +6,8 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-08-23
+
 ### Changed
 - Bumped `jinja2` 3.1.4 → 3.1.6 (fixes two GHSA sandbox-breakout
   advisories flagged by newly-enabled Dependabot alerts -- not actually
