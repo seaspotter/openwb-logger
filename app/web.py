@@ -81,12 +81,31 @@ async def index(request: Request):
 
 @router.get("/api/dates")
 async def api_dates(source: str | None = None):
+    """Every calendar day between the oldest and newest retained line for
+    the dropdown, generated from a cheap min/max(ts) lookup instead of
+    `SELECT DISTINCT ts::date FROM log_lines` -- at millions of rows that
+    scans close to the entire table just to find a handful of distinct
+    days, since `ts::date` is a computed expression that (unlike a plain
+    indexed column, e.g. /api/levels' `level`) TimescaleDB's SkipScan
+    optimization can't apply to; measured at 22s against a real 15M-row
+    table before landing this fix. Assumes continuous day-to-day coverage
+    (true for an always-on poller) -- a day with genuinely zero rows just
+    shows "keine Zeilen" if picked, a fine trade for never scanning the
+    table just to build this list."""
     pool = get_pool()
     where, params = _filters(None, None, None, source)
-    rows = await pool.fetch(
-        f"SELECT DISTINCT ts::date AS d FROM log_lines {where} ORDER BY d DESC", *params
+    stats = await pool.fetchrow(
+        f"SELECT min(ts) AS oldest, max(ts) AS newest FROM log_lines {where}", *params
     )
-    return {"dates": [r["d"].isoformat() for r in rows]}
+    if not stats["oldest"]:
+        return {"dates": []}
+    dates = []
+    d = stats["newest"].date()
+    oldest = stats["oldest"].date()
+    while d >= oldest:
+        dates.append(d.isoformat())
+        d -= timedelta(days=1)
+    return {"dates": dates}
 
 
 @router.get("/api/levels")

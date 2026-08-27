@@ -6,6 +6,19 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
+### Fixed
+- `/api/dates` (the "Tag" dropdown) took 22+ seconds to load on a real
+  15M-row instance: `SELECT DISTINCT ts::date FROM log_lines` scans
+  close to the entire table to find a handful of distinct days, since
+  `ts::date` is a computed expression that TimescaleDB's SkipScan
+  optimization (which already makes `/api/levels`'s similar DISTINCT
+  query fast, confirmed via EXPLAIN ANALYZE) can't apply to. Replaced
+  with a day range generated from `min(ts)`/`max(ts)` instead (already
+  cheap, index-optimized -- confirmed 22s → 3.9ms on the same real
+  instance) -- assumes continuous day-to-day coverage, true for an
+  always-on poller; a day with genuinely zero rows just shows "keine
+  Zeilen" if picked.
+
 ## [0.2.1] - 2026-08-23
 
 ### Changed
