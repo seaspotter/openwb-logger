@@ -102,6 +102,13 @@ nichts mehr gibt.
 - **Paste-Upload-URL / Paste-Anzeige-URL** — wohin "An Paste senden"
   hochlädt bzw. wie der angezeigte Link aufgebaut wird. Nur ändern, falls
   ein anderer Paste-Dienst genutzt werden soll.
+- **Retention-Job** — zeigt, ob TimescaleDBs eigener Aufbewahrungs-Job
+  gerade funktioniert. Bei "Fehlgeschlagen" erscheint ein
+  **Reparieren**-Knopf (mit Bestätigungsdialog): behebt einen bekannten
+  TimescaleDB-Fehler, bei dem der Job dauerhaft mit "no chunk found with
+  ID N" fehlschlägt und alte Daten dadurch nie automatisch gelöscht
+  werden (siehe [DEPLOYMENT.md](DEPLOYMENT.md)). Entfernt nur Metadaten
+  bereits gelöschter Chunks, keine echten Log-Daten.
 - **Version / Update** — zeigt den aktuellen Commit; **Prüfen** vergleicht
   gegen das konfigurierte Git-Remote, ohne etwas zu verändern; **Update**
   lädt die neueste Version und startet die Anwendung neu. Beide Knöpfe

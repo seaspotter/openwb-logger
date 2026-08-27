@@ -320,6 +320,44 @@ async def api_fetch_now():
     return {"ok": True}
 
 
+@router.post("/api/retention/repair")
+async def api_retention_repair():
+    """Removes any _timescaledb_catalog.chunk_constraint (and now-orphaned
+    dimension_slice) rows referencing a chunk_id that no longer exists in
+    _timescaledb_catalog.chunk -- a dangling-reference bug in TimescaleDB
+    itself that gets its own retention job permanently stuck failing every
+    run with "no chunk found with ID N" (see DEPLOYMENT.md's
+    troubleshooting entry). Explicitly triggered from the settings panel,
+    never automatically -- this pokes at TimescaleDB's own undocumented
+    internal catalog tables, which is worth a human confirming each time
+    rather than running unattended. Only ever removes bookkeeping for
+    chunks already gone; touches no actual log data."""
+    pool = get_pool()
+    orphaned = await pool.fetch(
+        "SELECT chunk_id, dimension_slice_id FROM _timescaledb_catalog.chunk_constraint cc "
+        "WHERE NOT EXISTS (SELECT 1 FROM _timescaledb_catalog.chunk c WHERE c.id = cc.chunk_id)"
+    )
+    if not orphaned:
+        return {"ok": True, "removed": 0}
+    chunk_ids = [r["chunk_id"] for r in orphaned]
+    slice_ids = [r["dimension_slice_id"] for r in orphaned]
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute(
+                "DELETE FROM _timescaledb_catalog.chunk_constraint WHERE chunk_id = ANY($1::int[])",
+                chunk_ids,
+            )
+            await conn.execute(
+                "DELETE FROM _timescaledb_catalog.dimension_slice ds WHERE ds.id = ANY($1::int[]) "
+                "AND NOT EXISTS ("
+                "  SELECT 1 FROM _timescaledb_catalog.chunk_constraint cc2 "
+                "  WHERE cc2.dimension_slice_id = ds.id"
+                ")",
+                slice_ids,
+            )
+    return {"ok": True, "removed": len(orphaned)}
+
+
 @router.get("/api/status")
 async def api_status():
     """Polled every 5s by every open tab (see index.html), so this must stay
@@ -343,6 +381,26 @@ async def api_status():
         recent_since,
     )
     recent_errors = {r["source"]: r["n"] for r in error_rows}
+    # Catches a real incident: TimescaleDB's own retention job can get stuck
+    # failing forever (a dangling internal catalog reference to an
+    # already-dropped chunk -- see DEPLOYMENT.md's troubleshooting entry),
+    # silently never actually dropping old data despite the policy being
+    # "configured" correctly. "Unhealthy" = it's run at least once and the
+    # most recent run hasn't (yet) succeeded -- covers both "never worked"
+    # (last_successful_finish stays -infinity) and "used to work, now
+    # failing" alike, without needing a total_failures column that isn't
+    # consistently present across TimescaleDB versions.
+    retention_job = await pool.fetchrow(
+        "SELECT last_run_started_at, last_successful_finish, total_runs "
+        "FROM timescaledb_information.job_stats WHERE job_id = ("
+        "  SELECT job_id FROM timescaledb_information.jobs "
+        "  WHERE proc_name = 'policy_retention' LIMIT 1"
+        ")"
+    )
+    retention_job_unhealthy = bool(
+        retention_job and retention_job["total_runs"] > 0
+        and retention_job["last_run_started_at"] > retention_job["last_successful_finish"]
+    )
     rt = await get_settings(pool)
     s = fetcher.status
     return {
@@ -362,6 +420,7 @@ async def api_status():
         },
         "fetch_interval_seconds": rt["fetch_interval_seconds"],
         "retention_days": rt["retention_days"],
+        "retention_job_unhealthy": retention_job_unhealthy,
         "source_url": f"{rt['openwb_base_url']}{rt['openwb_ramdisk_path']}",
         "total_rows": total,
         "oldest": stats["oldest"].isoformat() if stats["oldest"] else None,

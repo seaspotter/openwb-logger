@@ -243,3 +243,33 @@ approach used for `knxpilot`) rather than exposing port 8080 directly.
   ownership mismatches are usually not the issue — more likely the repo
   has local modifications or diverged history. `git -C . status` on the
   host (same directory) will show what's blocking the fast-forward.
+- **Alerts button shows "Aufbewahrungsrichtlinie (Retention) schlägt
+  fehl"**, or disk usage keeps growing well past what `retention_days`
+  should allow: TimescaleDB's own retention job can get permanently
+  stuck, failing every single run with `ERROR: no chunk found with ID N`
+  — a real upstream TimescaleDB bug (not this project's own retention
+  logic, which just calls TimescaleDB's built-in `add_retention_policy`
+  and lets it manage everything), caused by a leftover internal catalog
+  reference to a chunk that's already been dropped, never cleaned up.
+  Not caused by anything specific to this project's setup or history —
+  confirmed live once by seeing it happen during entirely routine
+  operation, well after initial setup. Confirm the diagnosis first:
+  ```bash
+  docker compose logs timescaledb | grep "no chunk found with ID"
+  ```
+  If that shows repeated failures, find and remove the two dangling
+  catalog rows for the affected chunk N (replace `N` below with the
+  actual number from the error):
+  ```bash
+  docker compose exec timescaledb psql -U openwb_logger -d openwb_logger -c "
+  DELETE FROM _timescaledb_catalog.chunk_constraint WHERE chunk_id = N;
+  DELETE FROM _timescaledb_catalog.dimension_slice WHERE id = (
+    SELECT dimension_slice_id FROM _timescaledb_catalog.chunk_constraint WHERE chunk_id = N
+  );
+  "
+  ```
+  Verify with `SELECT show_chunks('log_lines', older_than => INTERVAL '7 days');`
+  (adjust the interval to your retention setting) — it should return
+  cleanly instead of erroring. This only removes bookkeeping for chunks
+  already gone; no actual log data is touched. The alerts button clears
+  itself once the job successfully completes a run.

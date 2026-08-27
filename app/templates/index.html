@@ -113,6 +113,12 @@
   #update-msg { font-size: 12px; margin-top: 6px; min-height: 16px; }
   #update-msg.error { color: var(--error); }
   #update-msg.ok { color: var(--accent); }
+  #retention-info { display: flex; align-items: center; gap: 10px; }
+  #retention-status { font-size: 12px; color: var(--muted); }
+  #retention-status.unhealthy { color: var(--error); }
+  #retention-msg { font-size: 12px; margin-top: 6px; min-height: 16px; }
+  #retention-msg.error { color: var(--error); }
+  #retention-msg.ok { color: var(--accent); }
 
   .modal-overlay {
     display: flex; position: fixed; inset: 0; background: var(--backdrop);
@@ -229,6 +235,14 @@
         <label for="s-paste-view" style="margin-top:8px;">Paste-Anzeige-URL</label>
         <input id="s-paste-view" type="text" placeholder="https://paste.openwb.de/">
       </div>
+    </div>
+    <div class="field">
+      <label>Retention-Job</label>
+      <div id="retention-info">
+        <span id="retention-status">-</span>
+        <button id="retention-repair-btn" type="button" style="display:none;">Reparieren</button>
+      </div>
+      <div id="retention-msg"></div>
     </div>
     <div class="field">
       <label>Version</label>
@@ -631,6 +645,7 @@ async function loadStatus() {
     `<span>Letzter Abruf: ${s.last_fetch_at || '-'}</span>` +
     extra;
   updateAlerts(s);
+  updateRetentionStatus(s);
 }
 
 // ---- Warnungen/Fehler ("!" Button) ----
@@ -653,6 +668,13 @@ function updateAlerts(s) {
   const alerts = [];
   if (s.last_error) {
     alerts.push({ type: 'error', text: `Abruf fehlgeschlagen: ${s.last_error}` });
+  }
+  if (s.retention_job_unhealthy) {
+    alerts.push({
+      type: 'error',
+      text: 'Aufbewahrungsrichtlinie (Retention) schlägt fehl -- alte Daten werden ' +
+        'möglicherweise nicht automatisch gelöscht, Speicherplatz prüfen (siehe DEPLOYMENT.md)',
+    });
   }
   for (const [name, v] of Object.entries(s.sources)) {
     if (v.last_error) {
@@ -957,6 +979,57 @@ updateBtn.onclick = async () => {
   } finally {
     updateBtn.disabled = false;
     updateBtn.textContent = originalText;
+  }
+};
+
+// ---- Retention-Job ----
+// TimescaleDB's own retention job can get permanently stuck failing every
+// run (a dangling internal catalog reference to an already-dropped chunk
+// -- see DEPLOYMENT.md). Detecting it is safe to do continuously
+// (retention_job_unhealthy from /api/status); the actual repair pokes at
+// TimescaleDB's undocumented internal tables, so it stays an explicit,
+// confirmed button click rather than something run automatically.
+const retentionStatusEl = document.getElementById('retention-status');
+const retentionRepairBtn = document.getElementById('retention-repair-btn');
+const retentionMsgEl = document.getElementById('retention-msg');
+
+function updateRetentionStatus(s) {
+  retentionMsgEl.textContent = '';
+  retentionMsgEl.className = '';
+  if (s.retention_job_unhealthy) {
+    retentionStatusEl.textContent = 'Fehlgeschlagen';
+    retentionStatusEl.className = 'unhealthy';
+    retentionRepairBtn.style.display = '';
+  } else {
+    retentionStatusEl.textContent = 'OK';
+    retentionStatusEl.className = '';
+    retentionRepairBtn.style.display = 'none';
+  }
+}
+
+retentionRepairBtn.onclick = async () => {
+  if (!(await showConfirm(
+    'Verwaiste Retention-Katalogeinträge bereinigen? Entfernt nur Metadaten ' +
+    'bereits gelöschter Chunks, keine echten Log-Daten.'
+  ))) return;
+  retentionRepairBtn.disabled = true;
+  try {
+    const res = await fetch('/api/retention/repair', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) {
+      retentionMsgEl.textContent = 'Reparatur fehlgeschlagen: ' + (data.detail || res.status);
+      retentionMsgEl.className = 'error';
+      return;
+    }
+    retentionMsgEl.textContent = data.removed > 0
+      ? `${data.removed} verwaiste Einträge entfernt.`
+      : 'Keine verwaisten Einträge gefunden.';
+    retentionMsgEl.className = 'ok';
+  } catch (e) {
+    retentionMsgEl.textContent = 'Reparatur fehlgeschlagen: ' + e.message;
+    retentionMsgEl.className = 'error';
+  } finally {
+    retentionRepairBtn.disabled = false;
   }
 };
 
