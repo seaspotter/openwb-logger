@@ -385,22 +385,28 @@ async def api_status():
     # failing forever (a dangling internal catalog reference to an
     # already-dropped chunk -- see DEPLOYMENT.md's troubleshooting entry),
     # silently never actually dropping old data despite the policy being
-    # "configured" correctly. "Unhealthy" = it's run at least once and the
-    # most recent run hasn't (yet) succeeded -- covers both "never worked"
-    # (last_successful_finish stays -infinity) and "used to work, now
-    # failing" alike, without needing a total_failures column that isn't
-    # consistently present across TimescaleDB versions.
-    retention_job = await pool.fetchrow(
-        "SELECT last_run_started_at, last_successful_finish, total_runs "
-        "FROM timescaledb_information.job_stats WHERE job_id = ("
-        "  SELECT job_id FROM timescaledb_information.jobs "
-        "  WHERE proc_name = 'policy_retention' LIMIT 1"
-        ")"
-    )
-    retention_job_unhealthy = bool(
-        retention_job and retention_job["total_runs"] > 0
-        and retention_job["last_run_started_at"] > retention_job["last_successful_finish"]
-    )
+    # "configured" correctly. Compression runs via the same kind of
+    # background job (policy_compression) and gets the same blind-spot risk
+    # -- checked identically, though its own failure modes aren't
+    # diagnosed/documented yet the way retention's specific bug is, so no
+    # matching one-click repair for it (would be guessing at a fix without
+    # having seen a real failure to diagnose first).
+    async def _job_unhealthy(proc_name: str) -> bool:
+        job = await pool.fetchrow(
+            "SELECT last_run_started_at, last_successful_finish, total_runs "
+            "FROM timescaledb_information.job_stats WHERE job_id = ("
+            "  SELECT job_id FROM timescaledb_information.jobs "
+            "  WHERE proc_name = $1 LIMIT 1"
+            ")",
+            proc_name,
+        )
+        return bool(
+            job and job["total_runs"] > 0
+            and job["last_run_started_at"] > job["last_successful_finish"]
+        )
+
+    retention_job_unhealthy = await _job_unhealthy("policy_retention")
+    compression_job_unhealthy = await _job_unhealthy("policy_compression")
     rt = await get_settings(pool)
     s = fetcher.status
     return {
@@ -421,6 +427,7 @@ async def api_status():
         "fetch_interval_seconds": rt["fetch_interval_seconds"],
         "retention_days": rt["retention_days"],
         "retention_job_unhealthy": retention_job_unhealthy,
+        "compression_job_unhealthy": compression_job_unhealthy,
         "source_url": f"{rt['openwb_base_url']}{rt['openwb_ramdisk_path']}",
         "total_rows": total,
         "oldest": stats["oldest"].isoformat() if stats["oldest"] else None,

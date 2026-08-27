@@ -6,6 +6,17 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
+### Added
+- Compression-job health check, alongside the existing retention-job one:
+  compression runs via the same kind of TimescaleDB background job
+  (`policy_compression`) and carries the same blind-spot risk -- checked
+  identically (a warning-level alert, since a stuck compression job means
+  chunks stay larger than they could be, not that data is never deleted
+  the way a stuck retention job means). No matching one-click repair
+  yet, unlike retention's -- that fix targeted a specific, diagnosed bug;
+  nothing's been diagnosed for compression-job failures yet, so building
+  a "fix" now would just be guessing.
+
 ### Changed
 - Three disk-usage optimizations, all driven by real measurements on a
   live 15M-row instance:
