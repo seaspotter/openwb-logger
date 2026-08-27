@@ -85,8 +85,22 @@ _SCHEMA_STATEMENTS = [
     $$ LANGUAGE SQL IMMUTABLE;
     """,
     "SELECT create_hypertable('log_lines', 'ts', if_not_exists => TRUE);",
+    # Default chunk interval is 7 days; with a 7-day chunk size, retention
+    # can only ever drop a chunk once it's *entirely* past the cutoff (it
+    # can't partially trim a chunk still being written to) -- so 7-day
+    # chunks + 7-day retention meant always carrying somewhere between 7
+    # and ~14 days of data in a sawtooth, not a clean 7. 1-day chunks let
+    # retention track the configured setting much more closely. Only
+    # affects chunks created from here on; existing larger chunks keep
+    # their original size until retention ages them out naturally.
+    "SELECT set_chunk_time_interval('log_lines', INTERVAL '1 day');",
     "CREATE INDEX IF NOT EXISTS idx_log_lines_level ON log_lines (level);",
-    "CREATE INDEX IF NOT EXISTS idx_log_lines_source ON log_lines (source);",
+    # No standalone single-column source index: idx_log_lines_source_ts
+    # below (source, ts DESC) already covers a plain `WHERE source = X`
+    # via its leading column just as well (standard Postgres behavior for
+    # composite indexes), so a separate index here was pure redundancy --
+    # measured at ~104 MB on a real instance for zero functional benefit.
+    "DROP INDEX IF EXISTS idx_log_lines_source;",
     # Covers the common "filter by source, latest first" shape (tail mode,
     # /api/dates, /api/levels when a source is selected) better than the
     # single-column source index above.
@@ -98,7 +112,28 @@ _SCHEMA_STATEMENTS = [
     # GIN trigram index on the *reconstructed* line (RAW_EXPR), not a stored
     # column, so `raw ILIKE '%term%'` (search) can still use an index scan --
     # see CREATE EXTENSION pg_trgm above.
-    f"CREATE INDEX IF NOT EXISTS idx_log_lines_raw_trgm ON log_lines USING GIN (({RAW_EXPR}) gin_trgm_ops);",
+    f"CREATE INDEX IF NOT EXISTS idx_log_lines_raw_trgm "
+    f"ON log_lines USING GIN (({RAW_EXPR}) gin_trgm_ops);",
+    # Native compression for older chunks: on a real 15M-row instance, this
+    # single GIN trigram index alone measured 3.65 GB -- bigger than the
+    # actual log data (4.24 GB) -- and compression typically shrinks
+    # repetitive text like this 10-20x. Real trade-off, gone into with
+    # eyes open: compressed chunks don't maintain btree/GIN indexes the
+    # normal way, so ILIKE search reaching into compressed (>1 day old)
+    # data falls back to a slower decompress-and-scan path instead of an
+    # index scan -- browsing/filtering by day/level/source stays fast
+    # either way (TimescaleDB's compression is specifically optimized for
+    # that access pattern via compress_orderby/segmentby below). The
+    # actively-written chunk (<1 day old) stays uncompressed, so live-tail
+    # and recent search are unaffected. segmentby=source since that's the
+    # one column always used as an equality filter; orderby matches the
+    # (ts, id) keyset pagination order.
+    "ALTER TABLE log_lines SET ("
+    "  timescaledb.compress,"
+    "  timescaledb.compress_segmentby = 'source',"
+    "  timescaledb.compress_orderby = 'ts DESC, id DESC'"
+    ");",
+    "SELECT add_compression_policy('log_lines', INTERVAL '1 day', if_not_exists => TRUE);",
     """
     CREATE TABLE IF NOT EXISTS fetcher_state (
         key TEXT PRIMARY KEY,

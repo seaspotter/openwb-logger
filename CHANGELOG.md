@@ -6,6 +6,33 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
+### Changed
+- Three disk-usage optimizations, all driven by real measurements on a
+  live 15M-row instance:
+  - Chunk interval dropped from TimescaleDB's 7-day default to 1 day.
+    With 7-day chunks and 7-day retention, a chunk can only be dropped
+    once it's *entirely* past the cutoff, so steady-state usage sawtoothed
+    between roughly 7 and 14 days of data rather than holding near the
+    configured 7 -- 1-day chunks let retention track the setting far more
+    closely. Only affects chunks created from here on.
+  - Dropped a genuinely redundant single-column index on `source`: the
+    existing `(source, ts DESC)` index already serves a plain
+    `WHERE source = X` via its leading column just as well. Measured at
+    ~104 MB for zero functional benefit.
+  - Enabled TimescaleDB native compression on chunks older than 1 day.
+    The GIN trigram search index alone measured 3.65 GB on a real
+    instance -- bigger than the actual log data (4.24 GB) -- and
+    compression typically shrinks repetitive text like this 10-20x. Real
+    trade-off, taken deliberately: compressed chunks don't maintain
+    btree/GIN indexes the normal way, so free-text search reaching into
+    data older than 1 day falls back to a slower decompress-and-scan
+    instead of an index scan. Browsing/filtering by day/level/source
+    stays fast either way (TimescaleDB's compression is specifically
+    optimized for that access pattern), and the actively-written chunk
+    stays uncompressed, so live-tail and recent search are unaffected.
+    Compression itself happens gradually via TimescaleDB's own background
+    job, not instantly on upgrade.
+
 ### Added
 - Retention-job health check + one-click repair. TimescaleDB's own
   retention job can get permanently stuck failing every run with
