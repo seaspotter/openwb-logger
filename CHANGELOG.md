@@ -6,6 +6,8 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-27
+
 ### Added
 - Compression-job health check, alongside the existing retention-job one:
   compression runs via the same kind of TimescaleDB background job
@@ -16,6 +18,25 @@ what that means in practice for this project.
   yet, unlike retention's -- that fix targeted a specific, diagnosed bug;
   nothing's been diagnosed for compression-job failures yet, so building
   a "fix" now would just be guessing.
+- Retention-job health check + one-click repair. TimescaleDB's own
+  retention job can get permanently stuck failing every run with
+  `ERROR: no chunk found with ID N` -- a real upstream TimescaleDB bug
+  (a dangling internal catalog reference to an already-dropped chunk
+  that never gets cleaned up), not anything in this project's own
+  retention logic, which just calls TimescaleDB's built-in
+  `add_retention_policy` and lets it manage everything. Confirmed live
+  on a real installation: silently never dropped a single chunk despite
+  a 7-day retention setting, growing disk usage unbounded until it
+  neared full. `/api/status` now surfaces the job's health (new
+  "!" alert when it's stuck), and the settings panel shows a
+  Retention-Job status line with a **Reparieren** button (confirmation
+  dialog first) that finds and removes any orphaned
+  `chunk_constraint`/`dimension_slice` catalog rows -- deliberately a
+  human-triggered action, not automatic, since it pokes at
+  TimescaleDB's own undocumented internal tables; touches no actual log
+  data. Full diagnosis/manual-fix steps also documented in
+  `DEPLOYMENT.md`'s troubleshooting section for anyone who hits this
+  before self-update brings in the button.
 
 ### Changed
 - Three disk-usage optimizations, all driven by real measurements on a
@@ -43,27 +64,6 @@ what that means in practice for this project.
     stays uncompressed, so live-tail and recent search are unaffected.
     Compression itself happens gradually via TimescaleDB's own background
     job, not instantly on upgrade.
-
-### Added
-- Retention-job health check + one-click repair. TimescaleDB's own
-  retention job can get permanently stuck failing every run with
-  `ERROR: no chunk found with ID N` -- a real upstream TimescaleDB bug
-  (a dangling internal catalog reference to an already-dropped chunk
-  that never gets cleaned up), not anything in this project's own
-  retention logic, which just calls TimescaleDB's built-in
-  `add_retention_policy` and lets it manage everything. Confirmed live
-  on a real installation: silently never dropped a single chunk despite
-  a 7-day retention setting, growing disk usage unbounded until it
-  neared full. `/api/status` now surfaces the job's health (new
-  "!" alert when it's stuck), and the settings panel shows a
-  Retention-Job status line with a **Reparieren** button (confirmation
-  dialog first) that finds and removes any orphaned
-  `chunk_constraint`/`dimension_slice` catalog rows -- deliberately a
-  human-triggered action, not automatic, since it pokes at
-  TimescaleDB's own undocumented internal tables; touches no actual log
-  data. Full diagnosis/manual-fix steps also documented in
-  `DEPLOYMENT.md`'s troubleshooting section for anyone who hits this
-  before self-update brings in the button.
 
 ### Fixed
 - `/api/dates` (the "Tag" dropdown) took 22+ seconds to load on a real
