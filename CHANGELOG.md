@@ -6,6 +6,18 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
+### Fixed
+- `apply_retention_policy()` (tears down and recreates TimescaleDB's own
+  retention job) ran on *every* poll cycle regardless of whether
+  `retention_days` had actually changed -- constant, pointless churn
+  every 120s by default. Only re-applies now when the value actually
+  differs from what was last applied (still applied once on every
+  startup, since that in-memory state resets). Plausibly a contributing
+  factor to the exact catalog-corruption bug diagnosed once already (see
+  the retention-job-repair entry below/DEPLOYMENT.md): tearing the job
+  down while a run happens to be genuinely mid-execution is a much
+  smaller window now than "every single poll cycle, indefinitely."
+
 ### Added
 - "Jetzt bereinigen" button next to the Aufbewahrung setting: manually
   triggers `drop_chunks` immediately using the current retention_days

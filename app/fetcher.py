@@ -64,6 +64,15 @@ class Fetcher:
         # (or two manual clicks): both would otherwise read the same
         # per-source tail state concurrently and could double-insert lines.
         self._lock = asyncio.Lock()
+        # apply_retention_policy() tears down and recreates TimescaleDB's own
+        # retention job (remove_retention_policy + add_retention_policy) --
+        # only worth doing when retention_days has actually changed, not on
+        # every single poll cycle regardless. Re-applying it unconditionally
+        # every cycle (as this used to do) churns the job constantly for no
+        # reason, and risks tearing it down while a run is genuinely
+        # mid-execution -- plausibly a contributing factor to a real
+        # catalog-corruption bug diagnosed once already (see DEPLOYMENT.md).
+        self._applied_retention_days: int | None = None
 
     async def _get(self, client: httpx.AsyncClient, url: str) -> str | None:
         try:
@@ -82,7 +91,9 @@ class Fetcher:
             self.status.last_fetch_at = datetime.now().isoformat(timespec="seconds")
             try:
                 rt = await get_settings(pool)
-                await apply_retention_policy(pool, rt["retention_days"])
+                if rt["retention_days"] != self._applied_retention_days:
+                    await apply_retention_policy(pool, rt["retention_days"])
+                    self._applied_retention_days = rt["retention_days"]
 
                 async with httpx.AsyncClient() as client:
                     for name in rt["enabled_sources"]:
