@@ -672,15 +672,19 @@ function updateAlerts(s) {
   if (s.retention_job_unhealthy) {
     alerts.push({
       type: 'error',
-      text: 'Aufbewahrungsrichtlinie (Retention) schlägt fehl -- alte Daten werden ' +
-        'möglicherweise nicht automatisch gelöscht, Speicherplatz prüfen (siehe DEPLOYMENT.md)',
+      text: 'Aufbewahrungsrichtlinie (Retention) schlägt fehl' +
+        (s.retention_job_error ? ` (${s.retention_job_error})` : '') +
+        ' -- alte Daten werden möglicherweise nicht automatisch gelöscht, ' +
+        'Speicherplatz prüfen (siehe DEPLOYMENT.md)',
     });
   }
   if (s.compression_job_unhealthy) {
     alerts.push({
       type: 'warning',
-      text: 'Komprimierungs-Job schlägt fehl -- ältere Chunks werden möglicherweise ' +
-        'nicht automatisch komprimiert, Speicherplatz prüfen',
+      text: 'Komprimierungs-Job schlägt fehl' +
+        (s.compression_job_error ? ` (${s.compression_job_error})` : '') +
+        ' -- ältere Chunks werden möglicherweise nicht automatisch komprimiert, ' +
+        'Speicherplatz prüfen (siehe DEPLOYMENT.md)',
     });
   }
   for (const [name, v] of Object.entries(s.sources)) {

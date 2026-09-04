@@ -391,22 +391,37 @@ async def api_status():
     # diagnosed/documented yet the way retention's specific bug is, so no
     # matching one-click repair for it (would be guessing at a fix without
     # having seen a real failure to diagnose first).
-    async def _job_unhealthy(proc_name: str) -> bool:
+    async def _job_status(proc_name: str) -> tuple[bool, str | None]:
+        """(unhealthy, last_error_message). The message is job_errors'
+        *outer* error text (e.g. "columnstore policy failure ..." or "no
+        chunk found with ID N") -- enough to tell at a glance which of the
+        two known failure shapes this is, but not the full underlying
+        detail (e.g. "No space left on device" for a compression failure
+        caused by low disk), which only ever appears in the raw Postgres
+        log stream, not anywhere queryable via SQL -- see DEPLOYMENT.md."""
         job = await pool.fetchrow(
-            "SELECT last_run_started_at, last_successful_finish, total_runs "
+            "SELECT job_id, last_run_started_at, last_successful_finish, total_runs "
             "FROM timescaledb_information.job_stats WHERE job_id = ("
             "  SELECT job_id FROM timescaledb_information.jobs "
             "  WHERE proc_name = $1 LIMIT 1"
             ")",
             proc_name,
         )
-        return bool(
+        unhealthy = bool(
             job and job["total_runs"] > 0
             and job["last_run_started_at"] > job["last_successful_finish"]
         )
+        if not unhealthy:
+            return False, None
+        err = await pool.fetchval(
+            "SELECT err_message FROM timescaledb_information.job_errors "
+            "WHERE job_id = $1 LIMIT 1",
+            job["job_id"],
+        )
+        return True, err
 
-    retention_job_unhealthy = await _job_unhealthy("policy_retention")
-    compression_job_unhealthy = await _job_unhealthy("policy_compression")
+    retention_job_unhealthy, retention_job_error = await _job_status("policy_retention")
+    compression_job_unhealthy, compression_job_error = await _job_status("policy_compression")
     rt = await get_settings(pool)
     s = fetcher.status
     return {
@@ -427,7 +442,9 @@ async def api_status():
         "fetch_interval_seconds": rt["fetch_interval_seconds"],
         "retention_days": rt["retention_days"],
         "retention_job_unhealthy": retention_job_unhealthy,
+        "retention_job_error": retention_job_error,
         "compression_job_unhealthy": compression_job_unhealthy,
+        "compression_job_error": compression_job_error,
         "source_url": f"{rt['openwb_base_url']}{rt['openwb_ramdisk_path']}",
         "total_rows": total,
         "oldest": stats["oldest"].isoformat() if stats["oldest"] else None,

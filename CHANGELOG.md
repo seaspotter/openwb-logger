@@ -6,6 +6,26 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
+### Added
+- Retention/compression job alerts now include the actual TimescaleDB
+  error message (from `timescaledb_information.job_errors`) instead of
+  just "unhealthy" -- distinguishes "no chunk found with ID N" (the
+  catalog bug retention's repair button fixes) from "columnstore policy
+  failure" (compression, usually a low-disk symptom -- see below) without
+  needing to check container logs. Only the *outer* error text, not the
+  full underlying detail (e.g. "No space left on device"), which is only
+  ever in the raw Postgres log stream, not queryable via SQL.
+
+### Fixed
+- Documented a real, confirmed-live compression failure mode: converting
+  a chunk to columnstore needs temporary scratch space, so a
+  near-full disk blocks compression specifically -- a genuine catch-22,
+  since the mechanism meant to shrink disk usage needs some free room to
+  run in the first place. Not a TimescaleDB bug like retention's stuck-
+  job issue; just a resource constraint. Retention itself isn't affected
+  the same way (dropping a chunk doesn't need scratch space). See
+  `DEPLOYMENT.md`'s troubleshooting section.
+
 ## [0.3.0] - 2026-08-27
 
 ### Added

@@ -273,3 +273,22 @@ approach used for `knxpilot`) rather than exposing port 8080 directly.
   cleanly instead of erroring. This only removes bookkeeping for chunks
   already gone; no actual log data is touched. The alerts button clears
   itself once the job successfully completes a run.
+- **Alerts button shows "Komprimierungs-Job schlägt fehl"**: unlike
+  retention above, this is usually not a TimescaleDB bug — it's almost
+  always the disk running low. Converting a chunk to columnstore
+  (TimescaleDB's compression) needs temporary scratch space to build the
+  new representation before swapping it in, on top of whatever's already
+  stored — a real catch-22, since the mechanism meant to *shrink* disk
+  usage needs some free room to run in the first place. Confirmed live
+  once: the alert only shows the outer error text ("columnstore policy
+  failure..."), not the actual underlying reason, which only appears in
+  the raw container log:
+  ```bash
+  docker compose logs timescaledb | grep -A2 "converting chunk"
+  ```
+  Look for `No space left on device` in the `DETAIL:` line. If that's
+  what you see, grow the disk with real margin (not just enough to clear
+  the immediate alert) — retention itself isn't affected by low disk the
+  same way (dropping an existing chunk doesn't need scratch space the
+  way compressing one does), so this specifically blocks compression,
+  not your actual retention window.
