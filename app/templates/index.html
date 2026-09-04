@@ -119,6 +119,8 @@
   #retention-msg { font-size: 12px; margin-top: 6px; min-height: 16px; }
   #retention-msg.error { color: var(--error); }
   #retention-msg.ok { color: var(--accent); }
+  #purge-msg.error { color: var(--error); }
+  #purge-msg.ok { color: var(--accent); }
 
   .modal-overlay {
     display: flex; position: fixed; inset: 0; background: var(--backdrop);
@@ -219,6 +221,8 @@
     <div class="field">
       <label for="s-retention">Aufbewahrung (Tage)</label>
       <input id="s-retention" type="number" min="1">
+      <button id="purge-now-btn" type="button" style="margin-top:8px;">Jetzt bereinigen</button>
+      <div id="purge-msg" style="font-size:12px; margin-top:6px; min-height:16px;"></div>
     </div>
     <div class="field">
       <label for="s-page-size">Zeilen pro Seite</label>
@@ -1041,6 +1045,55 @@ retentionRepairBtn.onclick = async () => {
     retentionMsgEl.className = 'error';
   } finally {
     retentionRepairBtn.disabled = false;
+  }
+};
+
+// ---- Jetzt bereinigen ----
+// Manually triggers drop_chunks now (current Aufbewahrung setting) instead
+// of waiting for TimescaleDB's own once-a-day scheduled job -- a dry-run
+// preview first (same pattern as knxpilot's sibling project SpectrumKNX),
+// so you see the actual row count before confirming, not just a vague
+// "delete old stuff" click. Whole-chunk granularity like the underlying
+// drop_chunks call itself: some rows older than the setting may remain if
+// they share a still-active chunk with newer, retained rows (see
+// DEPLOYMENT.md) -- the preview count reflects that honestly.
+const purgeNowBtn = document.getElementById('purge-now-btn');
+const purgeMsgEl = document.getElementById('purge-msg');
+
+purgeNowBtn.onclick = async () => {
+  purgeNowBtn.disabled = true;
+  purgeMsgEl.textContent = '';
+  purgeMsgEl.className = '';
+  try {
+    const previewRes = await fetch('/api/retention/purge-now?dry_run=true', { method: 'POST' });
+    const preview = await previewRes.json();
+    if (!previewRes.ok) {
+      purgeMsgEl.textContent = 'Bereinigung fehlgeschlagen: ' + (preview.detail || previewRes.status);
+      purgeMsgEl.className = 'error';
+      return;
+    }
+    if (preview.removed_rows === 0) {
+      purgeMsgEl.textContent = 'Nichts zu bereinigen -- keine ganzen Chunks älter als die Aufbewahrungsfrist.';
+      purgeMsgEl.className = 'ok';
+      return;
+    }
+    if (!(await showConfirm(
+      `${preview.removed_rows} Zeilen jetzt löschen (statt auf den nächsten planmäßigen Lauf zu warten)?`
+    ))) return;
+    const res = await fetch('/api/retention/purge-now', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) {
+      purgeMsgEl.textContent = 'Bereinigung fehlgeschlagen: ' + (data.detail || res.status);
+      purgeMsgEl.className = 'error';
+      return;
+    }
+    purgeMsgEl.textContent = `${data.removed_rows} Zeilen gelöscht.`;
+    purgeMsgEl.className = 'ok';
+  } catch (e) {
+    purgeMsgEl.textContent = 'Bereinigung fehlgeschlagen: ' + e.message;
+    purgeMsgEl.className = 'error';
+  } finally {
+    purgeNowBtn.disabled = false;
   }
 };
 

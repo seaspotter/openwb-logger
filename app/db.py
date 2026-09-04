@@ -128,11 +128,28 @@ _SCHEMA_STATEMENTS = [
     # and recent search are unaffected. segmentby=source since that's the
     # one column always used as an equality filter; orderby matches the
     # (ts, id) keyset pagination order.
-    "ALTER TABLE log_lines SET ("
-    "  timescaledb.compress,"
-    "  timescaledb.compress_segmentby = 'source',"
-    "  timescaledb.compress_orderby = 'ts DESC, id DESC'"
-    ");",
+    # Guarded, not a bare ALTER: re-running this after chunks already exist
+    # fails on some TimescaleDB versions with "cannot change configuration
+    # on already compressed chunks" (a real, documented issue in a sibling
+    # project's own store -- checked their code specifically for this).
+    # Hasn't bitten this project's own TimescaleDB version so far, but this
+    # statement runs unconditionally on every single startup, so it's
+    # worth not depending on that continuing to be true.
+    """
+    DO $do$
+    BEGIN
+        IF NOT EXISTS (
+            SELECT 1 FROM timescaledb_information.hypertables
+            WHERE hypertable_name = 'log_lines' AND compression_enabled
+        ) THEN
+            EXECUTE $exec$ALTER TABLE log_lines SET (
+                timescaledb.compress,
+                timescaledb.compress_segmentby = 'source',
+                timescaledb.compress_orderby = 'ts DESC, id DESC'
+            )$exec$;
+        END IF;
+    END $do$;
+    """,
     "SELECT add_compression_policy('log_lines', INTERVAL '1 day', if_not_exists => TRUE);",
     """
     CREATE TABLE IF NOT EXISTS fetcher_state (

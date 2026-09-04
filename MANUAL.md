@@ -90,7 +90,12 @@ nichts mehr gibt.
   Zeit, die die jeweils schnellste aktivierte Quelle zum Rotieren
   braucht, sonst drohen Lücken (siehe oben).
 - **Aufbewahrung** — nach wie vielen Tagen Zeilen automatisch gelöscht
-  werden.
+  werden. **Jetzt bereinigen** löst das sofort aus (mit Vorschau der
+  betroffenen Zeilenzahl vor der Bestätigung), statt auf den nächsten
+  planmäßigen Lauf von TimescaleDBs eigenem Aufbewahrungs-Job zu warten.
+  Löscht immer ganze Chunks: einzelne Zeilen, die älter als die
+  Aufbewahrungsfrist sind, aber noch in einem ansonsten aktuellen Chunk
+  liegen, bleiben bis dieser komplett abläuft.
 - **Zeilen pro Seite** — wie viele Zeilen auf einmal geladen werden (gilt
   für "Heute (live)" und normales Blättern; Zeitraum hat eine eigene,
   höhere Grenze, siehe oben).

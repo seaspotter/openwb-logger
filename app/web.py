@@ -320,6 +320,35 @@ async def api_fetch_now():
     return {"ok": True}
 
 
+@router.post("/api/retention/purge-now")
+async def api_retention_purge_now(dry_run: bool = False):
+    """Manually triggers drop_chunks now, using the current retention_days
+    setting, instead of waiting for TimescaleDB's own once-a-day scheduled
+    retention job. dry_run only counts what would be removed.
+
+    Counts (and drops) at whole-chunk granularity, matching drop_chunks'
+    own semantics: some rows older than retention_days may remain if they
+    share a chunk with newer, still-retained rows (see DEPLOYMENT.md) --
+    the count here reflects that honestly rather than a naive `ts <
+    cutoff` count that would overstate what actually gets removed."""
+    pool = get_pool()
+    rt = await get_settings(pool)
+    days = rt["retention_days"]
+    cutoff = await pool.fetchval(
+        "SELECT max(range_end) FROM timescaledb_information.chunks "
+        "WHERE hypertable_name = 'log_lines' AND range_end <= now() - make_interval(days => $1)",
+        days,
+    )
+    if cutoff is None:
+        return {"ok": True, "removed_rows": 0, "dry_run": dry_run}
+    removed_rows = await pool.fetchval("SELECT count(*) FROM log_lines WHERE ts < $1", cutoff)
+    if not dry_run:
+        await pool.execute(
+            "SELECT drop_chunks('log_lines', older_than => make_interval(days => $1))", days
+        )
+    return {"ok": True, "removed_rows": removed_rows, "dry_run": dry_run}
+
+
 @router.post("/api/retention/repair")
 async def api_retention_repair():
     """Removes any _timescaledb_catalog.chunk_constraint (and now-orphaned

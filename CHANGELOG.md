@@ -7,6 +7,26 @@ what that means in practice for this project.
 ## [Unreleased]
 
 ### Added
+- "Jetzt bereinigen" button next to the Aufbewahrung setting: manually
+  triggers `drop_chunks` immediately using the current retention_days
+  value, instead of waiting for TimescaleDB's own once-a-day scheduled
+  job. Shows a dry-run preview (row count) before confirming, same
+  pattern as the sibling project SpectrumKNX's own purge feature.
+  Whole-chunk granularity like the underlying `drop_chunks` call itself
+  -- some rows older than the setting may remain if they share a
+  still-active chunk with newer, retained rows.
+
+### Changed
+- The compression-enabling `ALTER TABLE` in the schema bootstrap is now
+  guarded (only runs if compression isn't already enabled) instead of
+  unconditional on every startup. Found by reading a sibling project's
+  own compression code: re-running that ALTER after chunks already exist
+  fails on some TimescaleDB versions with "cannot change configuration
+  on already compressed chunks" -- hasn't hit this project's own
+  TimescaleDB version so far, but the statement runs on every single
+  startup, so worth not depending on that continuing to be true.
+
+### Added
 - Retention/compression job alerts now include the actual TimescaleDB
   error message (from `timescaledb_information.job_errors`) instead of
   just "unhealthy" -- distinguishes "no chunk found with ID N" (the
