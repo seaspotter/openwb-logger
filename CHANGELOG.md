@@ -6,7 +6,25 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-04
+
 ### Added
+- "Jetzt bereinigen" button next to the Aufbewahrung setting: manually
+  triggers `drop_chunks` immediately using the current retention_days
+  value, instead of waiting for TimescaleDB's own once-a-day scheduled
+  job. Shows a dry-run preview (row count) before confirming, same
+  pattern as the sibling project SpectrumKNX's own purge feature.
+  Whole-chunk granularity like the underlying `drop_chunks` call itself
+  -- some rows older than the setting may remain if they share a
+  still-active chunk with newer, retained rows.
+- Retention/compression job alerts now include the actual TimescaleDB
+  error message (from `timescaledb_information.job_errors`) instead of
+  just "unhealthy" -- distinguishes "no chunk found with ID N" (the
+  catalog bug retention's repair button fixes) from "columnstore policy
+  failure" (compression, usually a low-disk symptom -- see below) without
+  needing to check container logs. Only the *outer* error text, not the
+  full underlying detail (e.g. "No space left on device"), which is only
+  ever in the raw Postgres log stream, not queryable via SQL.
 - One-click **Reparieren** button for the compression job in Settings,
   matching the existing retention-job one: recreates the compression
   policy (`remove_compression_policy` + `add_compression_policy`) via a
@@ -20,6 +38,16 @@ what that means in practice for this project.
   "Komprimierungs-Job schlägt fehl" entry, alongside the pre-existing
   low-disk-space cause.
 
+### Changed
+- The compression-enabling `ALTER TABLE` in the schema bootstrap is now
+  guarded (only runs if compression isn't already enabled) instead of
+  unconditional on every startup. Found by reading a sibling project's
+  own compression code: re-running that ALTER after chunks already exist
+  fails on some TimescaleDB versions with "cannot change configuration
+  on already compressed chunks" -- hasn't hit this project's own
+  TimescaleDB version so far, but the statement runs on every single
+  startup, so worth not depending on that continuing to be true.
+
 ### Fixed
 - `apply_retention_policy()` (tears down and recreates TimescaleDB's own
   retention job) ran on *every* poll cycle regardless of whether
@@ -31,38 +59,6 @@ what that means in practice for this project.
   the retention-job-repair entry below/DEPLOYMENT.md): tearing the job
   down while a run happens to be genuinely mid-execution is a much
   smaller window now than "every single poll cycle, indefinitely."
-
-### Added
-- "Jetzt bereinigen" button next to the Aufbewahrung setting: manually
-  triggers `drop_chunks` immediately using the current retention_days
-  value, instead of waiting for TimescaleDB's own once-a-day scheduled
-  job. Shows a dry-run preview (row count) before confirming, same
-  pattern as the sibling project SpectrumKNX's own purge feature.
-  Whole-chunk granularity like the underlying `drop_chunks` call itself
-  -- some rows older than the setting may remain if they share a
-  still-active chunk with newer, retained rows.
-
-### Changed
-- The compression-enabling `ALTER TABLE` in the schema bootstrap is now
-  guarded (only runs if compression isn't already enabled) instead of
-  unconditional on every startup. Found by reading a sibling project's
-  own compression code: re-running that ALTER after chunks already exist
-  fails on some TimescaleDB versions with "cannot change configuration
-  on already compressed chunks" -- hasn't hit this project's own
-  TimescaleDB version so far, but the statement runs on every single
-  startup, so worth not depending on that continuing to be true.
-
-### Added
-- Retention/compression job alerts now include the actual TimescaleDB
-  error message (from `timescaledb_information.job_errors`) instead of
-  just "unhealthy" -- distinguishes "no chunk found with ID N" (the
-  catalog bug retention's repair button fixes) from "columnstore policy
-  failure" (compression, usually a low-disk symptom -- see below) without
-  needing to check container logs. Only the *outer* error text, not the
-  full underlying detail (e.g. "No space left on device"), which is only
-  ever in the raw Postgres log stream, not queryable via SQL.
-
-### Fixed
 - Documented a real, confirmed-live compression failure mode: converting
   a chunk to columnstore needs temporary scratch space, so a
   near-full disk blocks compression specifically -- a genuine catch-22,
