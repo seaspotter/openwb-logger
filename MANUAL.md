@@ -114,6 +114,13 @@ nichts mehr gibt.
   ID N" fehlschlägt und alte Daten dadurch nie automatisch gelöscht
   werden (siehe [DEPLOYMENT.md](DEPLOYMENT.md)). Entfernt nur Metadaten
   bereits gelöschter Chunks, keine echten Log-Daten.
+- **Kompressions-Job** — dasselbe für TimescaleDBs Komprimierungs-Job.
+  Bei "Fehlgeschlagen" erscheint ebenfalls ein **Reparieren**-Knopf: er
+  richtet den Job neu ein, was einen ähnlichen Fehler behebt, bei dem
+  ein gelöschter Chunk den Job dauerhaft blockiert (siehe
+  [DEPLOYMENT.md](DEPLOYMENT.md)). Hilft nicht, wenn stattdessen zu wenig
+  Speicherplatz die Ursache ist — das steht dann im Container-Log, nicht
+  hier.
 - **Version / Update** — zeigt den aktuellen Commit; **Prüfen** vergleicht
   gegen das konfigurierte Git-Remote, ohne etwas zu verändern; **Update**
   lädt die neueste Version und startet die Anwendung neu. Beide Knöpfe

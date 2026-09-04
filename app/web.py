@@ -387,6 +387,31 @@ async def api_retention_repair():
     return {"ok": True, "removed": len(orphaned)}
 
 
+@router.post("/api/compression/repair")
+async def api_compression_repair():
+    """Recreates the compression policy (remove_compression_policy +
+    add_compression_policy) to clear a confirmed-live TimescaleDB failure
+    mode: after a chunk is dropped (e.g. via "Jetzt bereinigen" or the
+    daily retention job), the compression job's own internal candidate
+    state can keep pointing at that now-gone chunk and fail on every run
+    afterwards -- "columnstore policy failure... Failed to convert '1'
+    chunks" with no chunk of that name left anywhere in
+    _timescaledb_catalog.chunk (see DEPLOYMENT.md's troubleshooting
+    entry). Recreating the policy resets that state; it touches no
+    actual log data and compress_after stays the same (1 day, matching
+    db.py's bootstrap). Won't help if the real cause is low disk space
+    instead (the job will just fail again next run) -- that case is
+    diagnosed separately via the raw container log, not fixable by this
+    endpoint."""
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("SELECT remove_compression_policy('log_lines')")
+        await conn.execute(
+            "SELECT add_compression_policy('log_lines', INTERVAL '1 day', if_not_exists => TRUE)"
+        )
+    return {"ok": True}
+
+
 @router.get("/api/status")
 async def api_status():
     """Polled every 5s by every open tab (see index.html), so this must stay
@@ -416,10 +441,12 @@ async def api_status():
     # silently never actually dropping old data despite the policy being
     # "configured" correctly. Compression runs via the same kind of
     # background job (policy_compression) and gets the same blind-spot risk
-    # -- checked identically, though its own failure modes aren't
-    # diagnosed/documented yet the way retention's specific bug is, so no
-    # matching one-click repair for it (would be guessing at a fix without
-    # having seen a real failure to diagnose first).
+    # -- checked identically. Confirmed live: a dropped chunk can similarly
+    # leave the compression job's own candidate state stuck on a chunk
+    # that's fully gone, failing every run regardless of free disk space;
+    # api_compression_repair() above recreates the policy to clear it (a
+    # separate, disk-space-caused failure looks the same here but needs
+    # growing the disk instead -- see DEPLOYMENT.md).
     async def _job_status(proc_name: str) -> tuple[bool, str | None]:
         """(unhealthy, last_error_message). The message is job_errors'
         *outer* error text (e.g. "columnstore policy failure ..." or "no

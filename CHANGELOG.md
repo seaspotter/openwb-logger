@@ -6,6 +6,20 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
+### Added
+- One-click **Reparieren** button for the compression job in Settings,
+  matching the existing retention-job one: recreates the compression
+  policy (`remove_compression_policy` + `add_compression_policy`) via a
+  new `POST /api/compression/repair` endpoint. Fixes a confirmed-live
+  TimescaleDB failure mode where dropping a chunk (via "Jetzt bereinigen"
+  or the daily retention job) leaves the compression job's own internal
+  candidate state stuck pointing at that now-gone chunk, failing every
+  run afterwards regardless of free disk space -- previously required
+  manual psql surgery, now self-service like the retention repair.
+  Touches no log data. Documented in DEPLOYMENT.md's existing
+  "Komprimierungs-Job schlägt fehl" entry, alongside the pre-existing
+  low-disk-space cause.
+
 ### Fixed
 - `apply_retention_policy()` (tears down and recreates TimescaleDB's own
   retention job) ran on *every* poll cycle regardless of whether

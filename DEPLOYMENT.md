@@ -292,3 +292,23 @@ approach used for `knxpilot`) rather than exposing port 8080 directly.
   same way (dropping an existing chunk doesn't need scratch space the
   way compressing one does), so this specifically blocks compression,
   not your actual retention window.
+
+  If the log instead keeps naming a chunk that no longer exists at all
+  (confirm with `SELECT * FROM _timescaledb_catalog.chunk WHERE id = N;`
+  returning zero rows, `N` from the log line's `_hyper_1_N_chunk`), it's
+  a different problem: a manual chunk drop (e.g. via "Jetzt bereinigen")
+  can leave the compression job's own internal candidate state pointing
+  at a chunk that's already fully gone from every catalog table, so it
+  fails on every run afterwards regardless of free disk space. The fix
+  is to recreate the policy, which resets that state without touching
+  any actual data:
+  ```bash
+  docker compose exec timescaledb psql -U openwb_logger -d openwb_logger -c "
+  SELECT remove_compression_policy('log_lines');
+  SELECT add_compression_policy('log_lines', INTERVAL '1 day', if_not_exists => TRUE);
+  "
+  ```
+  Confirmed live once: after recreating the policy, a manually triggered
+  run (`CALL run_job(<new job_id>);`, from
+  `SELECT job_id FROM timescaledb_information.jobs WHERE proc_name = 'policy_compression';`)
+  completed with no error.

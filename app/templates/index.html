@@ -119,6 +119,12 @@
   #retention-msg { font-size: 12px; margin-top: 6px; min-height: 16px; }
   #retention-msg.error { color: var(--error); }
   #retention-msg.ok { color: var(--accent); }
+  #compression-info { display: flex; align-items: center; gap: 10px; }
+  #compression-status { font-size: 12px; color: var(--muted); }
+  #compression-status.unhealthy { color: var(--error); }
+  #compression-msg { font-size: 12px; margin-top: 6px; min-height: 16px; }
+  #compression-msg.error { color: var(--error); }
+  #compression-msg.ok { color: var(--accent); }
   #purge-msg.error { color: var(--error); }
   #purge-msg.ok { color: var(--accent); }
 
@@ -247,6 +253,14 @@
         <button id="retention-repair-btn" type="button" style="display:none;">Reparieren</button>
       </div>
       <div id="retention-msg"></div>
+    </div>
+    <div class="field">
+      <label>Kompressions-Job</label>
+      <div id="compression-info">
+        <span id="compression-status">-</span>
+        <button id="compression-repair-btn" type="button" style="display:none;">Reparieren</button>
+      </div>
+      <div id="compression-msg"></div>
     </div>
     <div class="field">
       <label>Version</label>
@@ -650,6 +664,7 @@ async function loadStatus() {
     extra;
   updateAlerts(s);
   updateRetentionStatus(s);
+  updateCompressionStatus(s);
 }
 
 // ---- Warnungen/Fehler ("!" Button) ----
@@ -1045,6 +1060,57 @@ retentionRepairBtn.onclick = async () => {
     retentionMsgEl.className = 'error';
   } finally {
     retentionRepairBtn.disabled = false;
+  }
+};
+
+// ---- Kompressions-Job ----
+// Same blind-spot risk as the retention job above, confirmed live: a
+// dropped chunk (via "Jetzt bereinigen" or the daily retention job) can
+// leave the compression job's own candidate state stuck on that
+// now-gone chunk, failing every run afterwards. The repair recreates the
+// policy -- touches no log data -- but won't help if the real cause is
+// low disk space instead (see DEPLOYMENT.md), so it stays an explicit
+// button click rather than something run automatically.
+const compressionStatusEl = document.getElementById('compression-status');
+const compressionRepairBtn = document.getElementById('compression-repair-btn');
+const compressionMsgEl = document.getElementById('compression-msg');
+
+function updateCompressionStatus(s) {
+  compressionMsgEl.textContent = '';
+  compressionMsgEl.className = '';
+  if (s.compression_job_unhealthy) {
+    compressionStatusEl.textContent = 'Fehlgeschlagen';
+    compressionStatusEl.className = 'unhealthy';
+    compressionRepairBtn.style.display = '';
+  } else {
+    compressionStatusEl.textContent = 'OK';
+    compressionStatusEl.className = '';
+    compressionRepairBtn.style.display = 'none';
+  }
+}
+
+compressionRepairBtn.onclick = async () => {
+  if (!(await showConfirm(
+    'Kompressions-Job neu einrichten? Setzt nur den internen Job-Status ' +
+    'zurück, keine echten Log-Daten werden verändert. Hilft nicht, wenn ' +
+    'die Ursache stattdessen zu wenig Speicherplatz ist.'
+  ))) return;
+  compressionRepairBtn.disabled = true;
+  try {
+    const res = await fetch('/api/compression/repair', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) {
+      compressionMsgEl.textContent = 'Reparatur fehlgeschlagen: ' + (data.detail || res.status);
+      compressionMsgEl.className = 'error';
+      return;
+    }
+    compressionMsgEl.textContent = 'Kompressions-Job neu eingerichtet.';
+    compressionMsgEl.className = 'ok';
+  } catch (e) {
+    compressionMsgEl.textContent = 'Reparatur fehlgeschlagen: ' + e.message;
+    compressionMsgEl.className = 'error';
+  } finally {
+    compressionRepairBtn.disabled = false;
   }
 };
 
