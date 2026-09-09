@@ -6,6 +6,17 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
+### Fixed
+- "Jetzt bereinigen" (`POST /api/retention/purge-now`) crashed with a raw
+  500 ("Internal Server Error", not JSON) whenever there was actually
+  something eligible to purge -- confirmed live. Cause:
+  `timescaledb_information.chunks.range_end` always comes back
+  timezone-aware, but `log_lines.ts` is a naive `TIMESTAMP` (see
+  CLAUDE.md); binding the aware cutoff straight into `ts < $1` crashed
+  asyncpg's naive-timestamp encoder. Only the manual button was affected
+  -- the automatic daily `policy_retention` job runs entirely inside
+  Postgres/TimescaleDB and never hit this Python code path.
+
 ## [0.4.0] - 2026-09-04
 
 ### Added

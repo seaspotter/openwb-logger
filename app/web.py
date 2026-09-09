@@ -341,6 +341,14 @@ async def api_retention_purge_now(dry_run: bool = False):
     )
     if cutoff is None:
         return {"ok": True, "removed_rows": 0, "dry_run": dry_run}
+    # timescaledb_information.chunks always reports range_end as
+    # timestamptz (tz-aware), even though log_lines.ts is a naive
+    # TIMESTAMP (see CLAUDE.md) -- binding the aware value as-is crashes
+    # asyncpg's naive-timestamp encoder ("can't subtract offset-naive and
+    # offset-aware datetimes"), confirmed live. The chunk boundary itself
+    # isn't tz-shifted (TimescaleDB stores it as a plain epoch offset), so
+    # dropping the tzinfo recovers the original naive value exactly.
+    cutoff = cutoff.replace(tzinfo=None)
     removed_rows = await pool.fetchval("SELECT count(*) FROM log_lines WHERE ts < $1", cutoff)
     if not dry_run:
         await pool.execute(
