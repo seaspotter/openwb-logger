@@ -1,0 +1,42 @@
+name: Create GitHub Release
+
+# Publishes a GitHub Release for every vX.Y.Z tag push, with the matching
+# CHANGELOG.md section ("## [X.Y.Z] - ...") as the release notes body.
+# `git tag vX.Y.Z && git push origin main --tags` (DEVELOPMENT.md's
+# documented release process) only creates the tag itself -- a Release
+# object is a separate GitHub construct, so without this workflow the
+# repo's Releases page kept showing an older version as "Latest" even
+# after a newer tag was pushed and its Docker image published (the gap
+# that caught v0.4.0: tagged and built, but not actually "released").
+# Mirrors the sibling project openwb-ladeprotokoll's own workflow of the
+# same name.
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract CHANGELOG section for this version
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v ver="$version" '
+            $0 ~ "^## \\[" ver "\\]" { flag=1; next }
+            /^## \[/ { flag=0 }
+            flag { print }
+          ' CHANGELOG.md > release_notes.md
+          if [ ! -s release_notes.md ]; then
+            echo "::error::No '## [$version]' section found in CHANGELOG.md for tag $GITHUB_REF_NAME -- did the release step (DEVELOPMENT.md) rename [Unreleased] before tagging?"
+            exit 1
+          fi
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          body_path: release_notes.md

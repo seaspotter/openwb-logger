@@ -6,6 +6,18 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-09-09
+
+### Added
+- `.github/workflows/release.yml` publishes an actual GitHub Release on
+  every `vX.Y.Z` tag push, pulling its notes from that version's
+  `CHANGELOG.md` section -- a plain `git tag && git push --tags` only
+  creates the tag itself, not a Release object, so the Releases page kept
+  showing an older version as "Latest" even after a newer tag was pushed
+  and its Docker image published (the gap that caught v0.4.0: tagged and
+  built, but not actually "released" until fixed by hand). Mirrors the
+  sibling project openwb-ladeprotokoll's own workflow of the same name.
+
 ### Fixed
 - "Jetzt bereinigen" (`POST /api/retention/purge-now`) crashed with a raw
   500 ("Internal Server Error", not JSON) whenever there was actually

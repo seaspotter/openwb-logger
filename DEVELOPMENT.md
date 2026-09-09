@@ -47,9 +47,16 @@ To cut a release:
    `main` lacks).
 3. `git tag vX.Y.Z && git push origin main --tags`.
 
-That last push is what actually triggers
-`.github/workflows/docker-publish.yml` to build and publish the
-multi-arch image — see `DEPLOYMENT.md`.
+That last push triggers two workflows on the new tag:
+`.github/workflows/docker-publish.yml` builds and publishes the
+multi-arch image (see `DEPLOYMENT.md`), and
+`.github/workflows/release.yml` publishes an actual GitHub Release for
+the tag — pulling its notes straight from the `## [X.Y.Z]` section step 1
+just created — so the repo's Releases page shows the new version as
+"Latest" without a separate manual `gh release create`. (A plain
+`git tag && git push --tags` only creates the tag; earlier releases had
+to be published as a GitHub Release by hand afterward, which is what this
+workflow now does automatically.)
 
 ## Setup
 
