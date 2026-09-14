@@ -55,7 +55,15 @@ def _filters(
         clauses.append(result)
 
     if day:
-        add("ts::date = {}::date", day)
+        # A sargable range, not `ts::date = {}::date`: that computed
+        # comparison blocked TimescaleDB's chunk exclusion entirely
+        # ("Chunks excluded during startup: 0"), forcing a scan across
+        # every retained chunk instead of just the one day -- confirmed
+        # live as the cause of multi-second filtered loads on "Heute
+        # (live)" (same non-sargable-expression defect /api/dates already
+        # hit once, see its own comment above).
+        start = datetime.combine(day, datetime.min.time())
+        add("ts >= {} AND ts < {}", start, start + timedelta(days=1))
     if from_:
         add("ts >= {}", from_)
     if to:
@@ -76,7 +84,17 @@ def _filters(
 
 @router.get("/", response_class=HTMLResponse)
 async def index(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    # The whole frontend (JS included) is inlined in this one response, and
+    # a tab stays open indefinitely (live-tail polls client-side, never
+    # re-requesting "/"). Without an explicit no-store, a plain reload can
+    # be served from the browser's disk cache instead of actually fetching
+    # a self-update's new HTML/JS -- confirmed live as the cause of "needs
+    # a hard refresh to work again" after an update. self_update_available()
+    # makes updates routine here, unlike a typical static site.
+    return templates.TemplateResponse(
+        "index.html", {"request": request},
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @router.get("/api/dates")

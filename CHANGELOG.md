@@ -6,6 +6,25 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
+### Fixed
+- The `day` filter (`/api/logs`, `/api/logs/export`) used `ts::date =
+  {}::date`, a computed comparison that blocked TimescaleDB's chunk
+  exclusion entirely -- confirmed live via `EXPLAIN ANALYZE`: "Chunks
+  excluded during startup: 0", forcing a scan across every retained
+  chunk (millions of rows filtered out row-by-row) instead of just the
+  requested day, for a ~1.9s filtered "Heute (live)" load instead of
+  effectively instant. Rewritten as a sargable `ts >= start AND ts <
+  start + 1 day` range, letting chunk exclusion actually prune to the
+  one relevant chunk. Same underlying defect class `/api/dates` already
+  hit once (see its own comment in the code).
+- `GET /` never set a `Cache-Control` header, so a plain browser reload
+  after a self-update could still be served the *previous* HTML/JS from
+  disk cache instead of actually re-fetching -- confirmed live as the
+  cause of needing a *hard* refresh (not just a normal one) to pick up
+  an update, since the whole frontend is inlined in this one response
+  and a tab otherwise never re-requests it (live-tail polls
+  client-side). Now sent with `Cache-Control: no-store`.
+
 ## [0.4.1] - 2026-09-09
 
 ### Added
