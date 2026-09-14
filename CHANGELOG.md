@@ -6,6 +6,8 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-14
+
 ### Added
 - New "Statistik" panel (header button, bar-chart icon): aggregates
   ERROR-level lines from the last 1h/24h/7d by logger and a digit-
