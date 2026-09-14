@@ -48,6 +48,10 @@ nichts mehr gibt.
   sich die Wahl im Browser.
 - **Jetzt abrufen** — löst sofort einen Abruf aus, ohne auf das nächste
   planmäßige Intervall zu warten.
+- **ⓘ** — zeigt openWBs eigene Version, Branch, Commit und Hostname (aus
+  dem Inhalt des Hauptlogs abgeleitet, nicht von openwb-logger selbst —
+  siehe **Version** unten dafür). Noch nicht bekannt direkt nach einem
+  Neustart, füllt sich beim nächsten Abruf.
 - **☀/🌙** — Hell/Dunkel umschalten; merkt sich die Wahl im Browser
   (Systemeinstellung entscheidet nur beim allerersten Besuch).
 - **⚙** — öffnet die Einstellungen (siehe unten).

@@ -68,6 +68,9 @@
   .alerts-list li { font-size: 13px; padding: 6px 8px; border-radius: 6px; background: var(--bg); }
   .alerts-list li.error { color: var(--error); }
   .alerts-list li.warning { color: var(--warning); }
+  .info-list { margin: 0 0 14px; display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 13px; }
+  .info-list dt { color: var(--muted); }
+  .info-list dd { margin: 0; }
   label.check { display: flex; align-items: center; gap: 5px; font-size: 13px; color: var(--muted); }
   #right-controls { display: flex; align-items: center; gap: 8px; margin-left: auto; }
   main { padding: 10px 16px; }
@@ -184,6 +187,13 @@
     <button id="paste-export">An Paste senden</button>
     <button id="sort-toggle" class="icon" title="Sortierung umkehren">&#8645;</button>
     <button id="fetch-now">Jetzt abrufen</button>
+    <button id="openwb-info-btn" class="icon" title="openWB-Version">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="16" x2="12" y2="12"/>
+        <line x1="12" y1="8" x2="12.01" y2="8"/>
+      </svg>
+    </button>
     <button id="alerts-btn" class="icon" title="Keine aktuellen Fehler oder Warnungen">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M12 3 2 20h20L12 3z"/>
@@ -665,6 +675,7 @@ async function loadStatus() {
   updateAlerts(s);
   updateRetentionStatus(s);
   updateCompressionStatus(s);
+  updateOpenwbInfo(s);
 }
 
 // ---- Warnungen/Fehler ("!" Button) ----
@@ -1112,6 +1123,42 @@ compressionRepairBtn.onclick = async () => {
   } finally {
     compressionRepairBtn.disabled = false;
   }
+};
+
+// ---- openWB-Info ----
+// Best-effort: openwb_info (from /api/status) is null until the fetcher
+// has seen a matching line in "main" at least once since its last
+// restart -- openWB logs its own config dict often enough that this
+// fills in within the first poll or two.
+const openwbInfoBtn = document.getElementById('openwb-info-btn');
+let currentOpenwbInfo = null;
+
+function updateOpenwbInfo(s) {
+  currentOpenwbInfo = s.openwb_info;
+  openwbInfoBtn.title = currentOpenwbInfo
+    ? `openWB ${currentOpenwbInfo.version} (${currentOpenwbInfo.hostname})`
+    : 'openWB-Version noch nicht bekannt';
+}
+
+openwbInfoBtn.onclick = () => {
+  if (!currentOpenwbInfo) {
+    showToast('openWB-Version noch nicht bekannt -- wird beim nächsten Abruf ermittelt.', 'ok');
+    return;
+  }
+  const info = currentOpenwbInfo;
+  const modal = openModal(`
+    <p>openWB-Version</p>
+    <dl class="info-list">
+      <dt>Version</dt><dd>${escapeHtml(info.version)}</dd>
+      <dt>Branch</dt><dd>${escapeHtml(info.current_branch)}</dd>
+      <dt>Commit</dt><dd>${escapeHtml(info.current_commit_short || info.current_commit)}</dd>
+      <dt>Hostname</dt><dd>${escapeHtml(info.hostname)}</dd>
+    </dl>
+    <div class="modal-actions"><button data-action="close">Schließen</button></div>
+  `);
+  modal.overlay.addEventListener('click', (ev) => {
+    if (ev.target.dataset && ev.target.dataset.action === 'close') modal.close();
+  });
 };
 
 // ---- Jetzt bereinigen ----

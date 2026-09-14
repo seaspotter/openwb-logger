@@ -6,6 +6,21 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
+### Added
+- New "ⓘ" header button showing openWB's own version, branch, commit and
+  hostname -- distinct from the existing "Version" section in Settings,
+  which is openwb-logger's own version. Extracted best-effort from the
+  full config dict openWB periodically logs to `main.log` (a Python
+  `repr()`, not JSON); `parse_openwb_info()` in `log_parse.py` requires
+  both a `'hostname'` and `'current_commit'` marker together to avoid
+  matching the many *other* lines that also happen to mention a
+  `version` field (each chargepoint/inverter reports its own firmware
+  version in a differently-shaped dataclass repr). Not a stable/
+  versioned API on openWB's side (still an alpha branch as of writing),
+  so a future format change just stops populating this rather than
+  breaking anything -- shows "noch nicht bekannt" until the next
+  matching line comes in.
+
 ### Fixed
 - The `day` filter (`/api/logs`, `/api/logs/export`) used `ts::date =
   {}::date`, a computed comparison that blocked TimescaleDB's chunk

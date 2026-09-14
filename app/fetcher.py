@@ -18,7 +18,7 @@ import httpx
 from .db import apply_retention_policy, get_state, set_state
 from .log_catalog import CATALOG
 from .log_merge import assemble_backfill, split_new_lines, stitch_gap
-from .log_parse import continuation_ratio, parse_line
+from .log_parse import continuation_ratio, parse_line, parse_openwb_info
 from .runtime_settings import RuntimeSettings, defaults, get_settings
 
 logger = logging.getLogger("openwb_logger.fetcher")
@@ -55,6 +55,11 @@ class FetcherStatus:
     last_success_at: str | None = None
     last_error: str | None = None
     sources: dict[str, SourceStatus] = field(default_factory=dict)
+    # Best-effort, from parse_openwb_info() -- openWB's own version/branch/
+    # commit/hostname, periodically re-derived from freshly fetched "main"
+    # lines (not persisted: repopulates from the next poll after a
+    # restart, which happens quickly given how often openWB logs this).
+    openwb_info: dict[str, str] | None = None
 
 
 class Fetcher:
@@ -204,6 +209,15 @@ class Fetcher:
             parsed = parse_line(raw, previous, log_format=log_format)
             previous = parsed
             rows.append(parsed)
+        if source == "main":
+            # Scan newest-first: openWB logs its full config dict often
+            # enough that the latest match in this one batch is already
+            # current -- no need to check every row once one's found.
+            for r in reversed(rows):
+                info = parse_openwb_info(r["message"])
+                if info:
+                    self.status.openwb_info = info
+                    break
         async with pool.acquire() as conn:
             await conn.executemany(
                 "INSERT INTO log_lines "

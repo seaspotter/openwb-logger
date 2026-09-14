@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.log_parse import continuation_ratio, parse_line
+from app.log_parse import continuation_ratio, parse_line, parse_openwb_info
 
 DETAILED_LINE = (
     "2026-08-20 14:32:01,123 - {chargepoint.py:88} - {INFO:MainThread} - Ladung gestartet"
@@ -88,3 +88,36 @@ def test_continuation_ratio_all_unmatched():
         previous = parse_line(f"garbled line {i}", previous=previous)
         rows.append(previous)
     assert continuation_ratio(rows) == 1.0
+
+
+OPENWB_CONFIG_MESSAGE = (
+    "{'update_in_progress': False, 'current_commit': "
+    "'2026-09-14 11:28:51 +0200 [ffae46f04]', 'current_branch': 'master', "
+    "'release_train': 'master', 'version': '2.3.0-alpha.2', 'boot_done': True, "
+    "'hostname': 'openwb-2', 'serial_number': 'owba3911138'}"
+)
+
+
+def test_parse_openwb_info_extracts_fields_from_config_dump():
+    info = parse_openwb_info(OPENWB_CONFIG_MESSAGE)
+    assert info["version"] == "2.3.0-alpha.2"
+    assert info["current_branch"] == "master"
+    assert info["current_commit"] == "2026-09-14 11:28:51 +0200 [ffae46f04]"
+    assert info["hostname"] == "openwb-2"
+    assert info["current_commit_short"] == "ffae46f04"
+
+
+def test_parse_openwb_info_ignores_per_component_version_field():
+    # A chargepoint/inverter's own firmware version, dataclass-repr style
+    # (unquoted key, no colon) -- must not be mistaken for the one config
+    # dump line, which uses dict-repr style ('key': value).
+    message = (
+        "ChargepointData(get=Get(version='2.3.0-alpha.1', current_branch='master', "
+        "current_commit='2026-09-06 10:50:50 +0200 [1deb4188f]'))"
+    )
+    assert parse_openwb_info(message) is None
+
+
+def test_parse_openwb_info_returns_none_when_a_field_is_missing():
+    message = "{'current_commit': '2026-09-14 11:28:51 +0200 [ffae46f04]', 'hostname': 'openwb-2'}"
+    assert parse_openwb_info(message) is None

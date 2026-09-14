@@ -528,6 +528,7 @@ async def api_status():
         "compression_job_unhealthy": compression_job_unhealthy,
         "compression_job_error": compression_job_error,
         "source_url": f"{rt['openwb_base_url']}{rt['openwb_ramdisk_path']}",
+        "openwb_info": s.openwb_info,
         "total_rows": total,
         "oldest": stats["oldest"].isoformat() if stats["oldest"] else None,
         "newest": stats["newest"].isoformat() if stats["newest"] else None,

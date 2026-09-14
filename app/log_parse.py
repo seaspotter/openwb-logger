@@ -100,6 +100,44 @@ def parse_line(
     }
 
 
+_OPENWB_INFO_RE = {
+    "version": re.compile(r"'version': '([^']*)'"),
+    "current_branch": re.compile(r"'current_branch': '([^']*)'"),
+    "current_commit": re.compile(r"'current_commit': '([^']*)'"),
+    "hostname": re.compile(r"'hostname': '([^']*)'"),
+}
+_COMMIT_HASH_RE = re.compile(r"\[([0-9a-f]+)\]")
+
+
+def parse_openwb_info(message: str) -> dict[str, str] | None:
+    """Best-effort extraction of openWB's own version/branch/commit/hostname
+    from the full internal config dict it periodically logs to the main
+    log (a Python repr of a plain dict, not JSON). Distinguished from the
+    many *other* lines that also happen to contain a 'version' key --
+    each chargepoint/inverter reports its own firmware version in a
+    differently-shaped dataclass repr (`version='...'`, no quoted key) --
+    by requiring both 'hostname' and 'current_commit' markers, which only
+    ever appear together on this one line.
+
+    Returns None if the line doesn't match or any expected field is
+    missing. openWB's internal repr isn't a stable/versioned API (still
+    on an alpha branch as of writing), so failing quietly here -- rather
+    than raising -- is the point: a future openWB release reshaping this
+    dict should just stop populating this info, not break the fetcher."""
+    if "'hostname':" not in message or "'current_commit':" not in message:
+        return None
+    result: dict[str, str] = {}
+    for key, pattern in _OPENWB_INFO_RE.items():
+        match = pattern.search(message)
+        if not match:
+            return None
+        result[key] = match.group(1)
+    commit_hash = _COMMIT_HASH_RE.search(result["current_commit"])
+    if commit_hash:
+        result["current_commit_short"] = commit_hash.group(1)
+    return result
+
+
 def continuation_ratio(rows: list[ParsedLine]) -> float:
     """Fraction of already-parsed rows that came back as continuations,
     i.e. didn't match the expected format. Used by fetcher.py to flag a
