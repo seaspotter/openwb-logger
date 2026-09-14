@@ -7,6 +7,15 @@ what that means in practice for this project.
 ## [Unreleased]
 
 ### Added
+- New "Statistik" panel (header button, bar-chart icon): aggregates
+  ERROR-level lines from the last 1h/24h/7d by logger and a digit-
+  normalized message pattern, via `GET /api/logs/error-summary`.
+  Continuation lines (traceback frames) are excluded so a multi-line
+  traceback doesn't inflate its logger's count. Scoped to whichever
+  source is currently selected in the header, matching the log view's
+  own "always exactly one source" rule. Confirmed live: immediately
+  surfaced one specific device responsible for ~45% of all errors over
+  2 days on a real instance -- invisible from the plain log view alone.
 - New "ⓘ" header button showing openWB's own version, branch, commit and
   hostname -- distinct from the existing "Version" section in Settings,
   which is openwb-logger's own version. Extracted best-effort from the

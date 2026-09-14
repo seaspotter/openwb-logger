@@ -52,6 +52,11 @@ nichts mehr gibt.
   dem Inhalt des Hauptlogs abgeleitet, nicht von openwb-logger selbst —
   siehe **Version** unten dafür). Noch nicht bekannt direkt nach einem
   Neustart, füllt sich beim nächsten Abruf.
+- **📊 Statistik** — öffnet eine Übersicht der häufigsten ERROR-Zeilen
+  (letzte Stunde/24 Stunden/7 Tage) nach Logger und Nachrichtenmuster,
+  bezogen auf die aktuell in der Kopfzeile gewählte Quelle. Zeigt, welche
+  Komponente tatsächlich die meisten Fehler verursacht, statt das durch
+  Scrollen selbst herausfinden zu müssen.
 - **☀/🌙** — Hell/Dunkel umschalten; merkt sich die Wahl im Browser
   (Systemeinstellung entscheidet nur beim allerersten Besuch).
 - **⚙** — öffnet die Einstellungen (siehe unten).

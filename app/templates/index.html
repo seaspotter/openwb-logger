@@ -131,6 +131,27 @@
   #purge-msg.error { color: var(--error); }
   #purge-msg.ok { color: var(--accent); }
 
+  #stats-backdrop {
+    display: none; position: fixed; inset: 0; background: var(--backdrop);
+    align-items: flex-start; justify-content: center; padding-top: 8vh; z-index: 10;
+  }
+  #stats-backdrop.open { display: flex; }
+  #stats-panel {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    width: min(720px, 92vw); padding: 18px 20px; max-height: 80vh; overflow-y: auto;
+  }
+  #stats-panel h2 { margin: 0 0 14px; font-size: 15px; }
+  #stats-panel .field { margin-bottom: 14px; }
+  #stats-panel label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  #stats-panel .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+  #stats-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  #stats-table th, #stats-table td {
+    text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--border);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 280px;
+  }
+  #stats-table th:nth-child(2), #stats-table td:nth-child(2) { max-width: 360px; white-space: normal; }
+  #stats-table th { color: var(--muted); font-weight: 500; }
+
   .modal-overlay {
     display: flex; position: fixed; inset: 0; background: var(--backdrop);
     align-items: flex-start; justify-content: center; padding-top: 8vh; z-index: 20;
@@ -192,6 +213,13 @@
         <circle cx="12" cy="12" r="10"/>
         <line x1="12" y1="16" x2="12" y2="12"/>
         <line x1="12" y1="8" x2="12.01" y2="8"/>
+      </svg>
+    </button>
+    <button id="stats-open" class="icon" title="Statistik">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="20" x2="18" y2="10"/>
+        <line x1="12" y1="20" x2="12" y2="4"/>
+        <line x1="6" y1="20" x2="6" y2="14"/>
       </svg>
     </button>
     <button id="alerts-btn" class="icon" title="Keine aktuellen Fehler oder Warnungen">
@@ -285,6 +313,36 @@
     <div class="actions">
       <button id="settings-cancel">Abbrechen</button>
       <button id="settings-save">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<div id="stats-backdrop">
+  <div id="stats-panel">
+    <h2>Statistik -- Top-Fehlerquellen</h2>
+    <div class="field">
+      <label for="stats-hours">Zeitraum</label>
+      <select id="stats-hours">
+        <option value="1">Letzte Stunde</option>
+        <option value="24" selected>Letzte 24 Stunden</option>
+        <option value="168">Letzte 7 Tage</option>
+      </select>
+    </div>
+    <div id="stats-body">
+      <p id="stats-empty" style="display:none; color:var(--muted); font-size:13px;">
+        Keine ERROR-Zeilen in diesem Zeitraum.
+      </p>
+      <div id="stats-table-wrap" style="overflow-x:auto;">
+        <table id="stats-table" style="display:none;">
+          <thead>
+            <tr><th>Logger</th><th>Muster</th><th>Anzahl</th><th>Zuletzt</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="actions">
+      <button id="stats-close">Schließen</button>
     </div>
   </div>
 </div>
@@ -1160,6 +1218,48 @@ openwbInfoBtn.onclick = () => {
     if (ev.target.dataset && ev.target.dataset.action === 'close') modal.close();
   });
 };
+
+// ---- Statistik (Top-Fehlerquellen) ----
+const statsBackdrop = document.getElementById('stats-backdrop');
+const statsHoursEl = document.getElementById('stats-hours');
+const statsTableEl = document.getElementById('stats-table');
+const statsEmptyEl = document.getElementById('stats-empty');
+
+async function loadStats() {
+  // Scoped to the header's currently selected source, same "always
+  // exactly one source, never blended" rule the log view itself follows
+  // (see loadSources() above).
+  const params = new URLSearchParams({ hours: statsHoursEl.value });
+  if (sourceEl.value) params.set('source', sourceEl.value);
+  const res = await fetch('/api/logs/error-summary?' + params.toString());
+  const data = await res.json();
+  const tbody = statsTableEl.querySelector('tbody');
+  tbody.innerHTML = '';
+  if (!data.rows.length) {
+    statsTableEl.style.display = 'none';
+    statsEmptyEl.style.display = '';
+    return;
+  }
+  statsEmptyEl.style.display = 'none';
+  statsTableEl.style.display = '';
+  for (const r of data.rows) {
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      `<td title="${escapeHtml(r.logger || '')}">${escapeHtml(r.logger || '-')}</td>` +
+      `<td title="${escapeHtml(r.pattern)}">${escapeHtml(r.pattern)}</td>` +
+      `<td>${r.count}</td>` +
+      `<td>${escapeHtml(r.last_seen.replace('T', ' ').slice(0, 19))}</td>`;
+    tbody.appendChild(tr);
+  }
+}
+
+function openStats() { statsBackdrop.classList.add('open'); loadStats(); }
+function closeStats() { statsBackdrop.classList.remove('open'); }
+
+document.getElementById('stats-open').onclick = openStats;
+document.getElementById('stats-close').onclick = closeStats;
+statsBackdrop.onclick = (e) => { if (e.target === statsBackdrop) closeStats(); };
+statsHoursEl.onchange = loadStats;
 
 // ---- Jetzt bereinigen ----
 // Manually triggers drop_chunks now (current Aufbewahrung setting) instead
