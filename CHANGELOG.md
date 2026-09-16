@@ -6,6 +6,8 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-09-16
+
 ### Fixed
 - The `/mcp` endpoint rejected every request from a real LAN address with
   a raw 421 "Invalid Host header" -- confirmed live. Cause: `FastMCP()`
