@@ -6,6 +6,19 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
+### Fixed
+- The `/mcp` endpoint rejected every request from a real LAN address with
+  a raw 421 "Invalid Host header" -- confirmed live. Cause: `FastMCP()`
+  auto-enables DNS-rebinding Host-header protection whenever
+  `transport_security` isn't explicitly passed and its own (otherwise
+  unused here) `host` constructor param defaults to `"127.0.0.1"`,
+  allowlisting only `localhost`/`127.0.0.1`/`::1` -- a default that
+  assumes FastMCP is running its own standalone server bound to
+  loopback, not mounted inside another app and reached over the LAN like
+  every other route here. Explicitly disabled to match this project's
+  existing no-auth-by-default, LAN-trust model (see `mcp_server.py`'s
+  own docstring).
+
 ## [0.5.0] - 2026-09-14
 
 ### Added
