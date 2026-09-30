@@ -6,6 +6,26 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
+### Changed
+- Deep code/docs review: removed a dead field (`ParsedLine["raw"]` in
+  `log_parse.py`, computed on every parsed line but never read by any
+  caller -- a leftover from before the DB's own `raw` column was dropped
+  in favor of reconstructing it on read via `RAW_EXPR`); removed
+  `pyproject.toml`'s `ruff`/`black` config, neither of which was ever
+  actually installed or run anywhere in this project (`setup.cfg`'s
+  `[flake8]` section remains the one declared line-length convention);
+  added `.github/workflows/tests.yml` so `pytest` actually runs in CI
+  instead of only locally, if at all. Fixed several stale docs found
+  along the way: `MANUAL.md` still described "Nicht erreichbar"/
+  "Fehler"/"Format-Warnung" as separate status-bar items, long after
+  they were consolidated into the "!" alerts button; `CLAUDE.md` and
+  `DEVELOPMENT.md` both claimed `app/config.py` reads `PORT` (it doesn't
+  -- uvicorn's own `--port` flag does, per `config.py`'s own docstring);
+  three files listed the MCP server as only three tools, missing
+  `get_storage_info`; `ROADMAP.md`'s "Done (v0.1.0)" heading was
+  mislabeled (most of its bullets shipped in v0.2.0-v0.5.x) and missing
+  several real features shipped since.
+
 ## [0.5.1] - 2026-09-16
 
 ### Fixed

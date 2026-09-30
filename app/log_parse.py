@@ -45,7 +45,6 @@ class ParsedLine(TypedDict):
     level: str | None
     thread: str | None
     message: str
-    raw: str
     is_continuation: bool
 
 
@@ -60,7 +59,6 @@ def _continuation(raw: str, previous: ParsedLine | None) -> ParsedLine:
         "level": base.get("level"),
         "thread": base.get("thread"),
         "message": raw,
-        "raw": raw,
         "is_continuation": True,
     }
 
@@ -80,7 +78,6 @@ def parse_line(
             "level": None,
             "thread": None,
             "message": match.group("message"),
-            "raw": raw,
             "is_continuation": False,
         }
 
@@ -95,7 +92,6 @@ def parse_line(
         "level": match.group("level"),
         "thread": match.group("thread") or None,
         "message": match.group("message"),
-        "raw": raw,
         "is_continuation": False,
     }
 

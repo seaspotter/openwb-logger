@@ -77,9 +77,11 @@ uvicorn app.main:app --reload --port 8080
 Then open http://localhost:8080 and set your openWB's address from the
 settings panel (gear icon) — there's no env var for it. The tool's own
 configuration is deliberately not environment-driven (see `app/config.py`
-and `app/runtime_settings.py` for why); `DATABASE_URL` and `PORT` are the
-only exceptions, since those are infra wiring the app needs before it can
-even read its own settings from the database. Hardcoded fallback defaults
+and `app/runtime_settings.py` for why); `DATABASE_URL` is the only
+exception, since that's infra wiring the app needs before it can even
+read its own settings from the database (`PORT` is separate infra wiring
+too, but handled directly by uvicorn's own `--port` flag, not read by
+application code at all). Hardcoded fallback defaults
 (`DEFAULT_OPENWB_BASE_URL` etc. in `app/runtime_settings.py`) are only used
 to seed the `app_settings` row on first boot. To reset back to those
 defaults during development, drop the row: `DELETE FROM app_settings;`.
@@ -101,7 +103,7 @@ staging) openWB.
 
 | Path | Purpose |
 |---|---|
-| `app/config.py` | Infra-level config (DB URL, port) — env vars, fixed per process |
+| `app/config.py` | Infra-level config (DB URL) — env vars, fixed per process |
 | `app/runtime_settings.py` | All the tool's own settings (openWB location, sources, retention, interval) — stored in DB, editable via UI, no env vars |
 | `app/log_catalog.py` | Static catalog of openWB's ramdisk logs (filename, format, backup depth) |
 | `app/log_parse.py` | Pure: one raw line -> structured fields |
@@ -110,7 +112,7 @@ staging) openWB.
 | `app/fetcher.py` | Orchestrates fetch -> merge -> parse -> insert per source; lock-guarded so the scheduled poll and a manual "Jetzt abrufen" click can't race |
 | `app/web.py` | FastAPI routes (all reads/writes are plain parameterized SQL) |
 | `app/updater.py` | Optional in-app self-update (`git pull` + process restart) |
-| `app/mcp_server.py` | MCP server (search/tail/export tools) for AI assistants, mounted at `/mcp` |
+| `app/mcp_server.py` | MCP server (search/tail/export/storage-info tools) for AI assistants, mounted at `/mcp` |
 | `app/templates/index.html` | The entire frontend (German UI) — vanilla JS, no build step |
 
 ## Adding a new log source
@@ -129,8 +131,13 @@ it once that lands for real. To add one openWB introduces later:
 
 ## Code style
 
-- Line length is 100 columns (`setup.cfg` / `pyproject.toml`), not the
-  flake8 default of 79.
+- Line length is 100 columns (`setup.cfg`'s `[flake8]` section), not the
+  flake8 default of 79. Not enforced in CI (no lint job exists -- only
+  `tests.yml` runs `pytest`, see "Tests" above) -- a declared convention
+  for editors/reviewers to follow, not a gate. `pyproject.toml` used to
+  duplicate this for `ruff`/`black`, but neither tool was ever actually
+  installed or run anywhere in this project, so it was removed rather
+  than left as unenforced, misleading config.
 - `log_merge.py`, `log_parse.py`, and `runtime_settings.validate()` must
   stay free of I/O (no httpx, no asyncpg) — that's what makes them cheap
   to unit test. New parsing/merging/validation logic belongs there;

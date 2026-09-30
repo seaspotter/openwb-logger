@@ -18,14 +18,16 @@ variables, no restart. Full picture in `README.md`; details in
 ## Architecture
 
 - `app/config.py` — **infra-level** config only, read once from env vars
-  at import time: `DATABASE_URL`/`POSTGRES_PASSWORD` and `PORT`. Nothing
-  about the tool's own behavior lives here on purpose (see the module
-  docstring). `POSTGRES_PASSWORD` alone is enough to build the connection
-  string (matching `docker-compose.yml`'s `timescaledb` service) — the
-  same variable reaches both services, so there's only ever one place to
-  set the password, not two copies of the same secret to keep in sync;
+  at import time: `DATABASE_URL`/`POSTGRES_PASSWORD`. Nothing about the
+  tool's own behavior lives here on purpose (see the module docstring).
+  `POSTGRES_PASSWORD` alone is enough to build the connection string
+  (matching `docker-compose.yml`'s `timescaledb` service) — the same
+  variable reaches both services, so there's only ever one place to set
+  the password, not two copies of the same secret to keep in sync;
   `DATABASE_URL` remains an escape hatch for anything that deviates from
-  the standard setup.
+  the standard setup. `PORT` is a separate env var handled directly by
+  uvicorn's own `--port` flag (see the Dockerfile) — application code
+  never reads it.
 - `app/runtime_settings.py` — **all** user-editable settings (openWB
   location, enabled log sources, retention, poll interval), stored as one
   JSONB row in `app_settings` and re-read every poll cycle, so changes
@@ -64,7 +66,8 @@ variables, no restart. Full picture in `README.md`; details in
   gates it off (and hides the UI controls) when that bind mount isn't
   present, e.g. a plain image deployment.
 - `app/mcp_server.py` — MCP server (`search_logs`/`tail_logs`/
-  `export_logs` tools, an `openwb://sources` resource) exposing the same
+  `export_logs`/`get_storage_info` tools, an `openwb://sources` resource)
+  exposing the same
   data as the web UI/API to AI assistants, mounted on the same FastAPI
   app at `/mcp` via the Streamable HTTP transport -- same port, same DB
   pool, same no-auth trust model as everything else. Pinned to `mcp`'s
@@ -118,7 +121,8 @@ docker compose up -d --build
   query string. Table names in the generic `get_kv`/`set_kv` helpers are
   the one exception — those are always hardcoded literals from our own
   code, never user input.
-- Line length is 100 cols (`setup.cfg` / `pyproject.toml`), not the flake8
-  default of 79.
+- Line length is 100 cols (`setup.cfg`'s `[flake8]` section), not the
+  flake8 default of 79. Not enforced in CI (no lint job exists) -- this is
+  a declared convention for editors/reviewers to follow, not a gate.
 - Update `CHANGELOG.md` (Unreleased section) and, if scope changed,
   `ROADMAP.md` when landing a user-visible change.

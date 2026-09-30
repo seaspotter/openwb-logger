@@ -3,7 +3,10 @@
 Loose notes on where this is headed, not a commitment. Reorder freely —
 open an issue or just start working if something here matters to you.
 
-## Done (v0.1.0)
+## Done
+
+Shipped across v0.1.0 through v0.5.x — see `CHANGELOG.md` for exactly
+which release each landed in.
 
 - [x] Poll openWB's `main.log`, gap-free merge with rotation recovery
 - [x] Structured storage in TimescaleDB, native retention policy
@@ -21,18 +24,30 @@ open an issue or just start working if something here matters to you.
 - [x] Cursor/keyset-based paging (by `(ts, id)`) instead of `OFFSET/LIMIT`
       for day/Zeitraum views — paging cost no longer grows with depth
 - [x] Surface parse failures/unexpected formats in the UI instead of only
-      the container logs — a per-source "format warning" in the status
-      bar (plus a container log warning) when an unusually high fraction
-      of a batch doesn't match the source's declared format
-- [x] MCP server: `search_logs`/`tail_logs`/`export_logs` tools plus an
-      `openwb://sources` resource, mounted at `/mcp` alongside the web UI
-      on the same port (Streamable HTTP transport, `mcp` pinned to its
-      1.x line — 2.x's `starlette` requirement conflicts with `fastapi`)
+      the container logs — a per-source "format warning" (folded into the
+      "!" alerts button, see below) when an unusually high fraction of a
+      batch doesn't match the source's declared format
+- [x] MCP server: `search_logs`/`tail_logs`/`export_logs`/
+      `get_storage_info` tools plus an `openwb://sources` resource,
+      mounted at `/mcp` alongside the web UI on the same port
+      (Streamable HTTP transport, `mcp` pinned to its 1.x line — 2.x's
+      `starlette` requirement conflicts with `fastapi`)
 - [x] Alerts indicator instead of a full webhook/notification system: a
       small "!" button/badge in the UI aggregating current errors/
       warnings (fetch failures, format-mismatch, gaps, ERROR-level lines)
       in one place, quiet by default — no popups, no external
       notifications, just something to check when you want to.
+- [x] Manual "Jetzt bereinigen" purge button (retention setting's cutoff,
+      with a dry-run preview) instead of only waiting for TimescaleDB's
+      own scheduled retention job
+- [x] One-click repair buttons for the retention/compression jobs getting
+      stuck on a dangling TimescaleDB catalog reference after a chunk
+      drop — a real, confirmed-live failure mode, not hypothetical
+- [x] "ⓘ" header button: openWB's own version/branch/commit/hostname,
+      best-effort parsed from its own logged config dump
+- [x] "Statistik" panel: top error sources by logger/message pattern over
+      a chosen time window, surfacing which component actually dominates
+      instead of requiring a manual scan through the log
 
 ## Next
 

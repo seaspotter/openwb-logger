@@ -19,7 +19,6 @@ def test_parse_detailed_line():
     assert result["level"] == "INFO"
     assert result["thread"] == "MainThread"
     assert result["message"] == "Ladung gestartet"
-    assert result["raw"] == DETAILED_LINE
     assert result["is_continuation"] is False
 
 
@@ -51,7 +50,6 @@ def test_parse_short_line():
     assert result["level"] is None
     assert result["thread"] is None
     assert result["message"] == "Ladevorgang beendet, 3.2 kWh geladen"
-    assert result["raw"] == SHORT_LINE
     assert result["is_continuation"] is False
 
 

@@ -1,0 +1,24 @@
+name: Tests
+
+# Runs the pure-logic test suite (log_merge, log_parse, runtime_settings --
+# no database or network, see DEVELOPMENT.md's "Tests" section) on every
+# push and pull request. Previously nothing ran this in CI at all --
+# pytest only ever ran locally, if someone remembered to.
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -r requirements-dev.txt
+
+      - run: pytest

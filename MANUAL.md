@@ -57,6 +57,13 @@ nichts mehr gibt.
   bezogen auf die aktuell in der Kopfzeile gewählte Quelle. Zeigt, welche
   Komponente tatsächlich die meisten Fehler verursacht, statt das durch
   Scrollen selbst herausfinden zu müssen.
+- **!** — Warnungen/Fehler, quiet by default (kein Popup, nur eine rote
+  Markierung mit Anzahl, sobald es etwas Neues gibt): fehlgeschlagene
+  Abrufe, nicht erreichbare Quellen, Format-Warnungen, nicht
+  wiederhergestellte Lücken, und ERROR-Zeilen der letzten Stunde — alles
+  an einer Stelle statt verstreut in der Statuszeile. Einmal geöffnet,
+  wird die aktuelle Menge als gesehen markiert; ändert sich etwas (neue
+  Meldung, andere Anzahl), leuchtet der Knopf erneut auf.
 - **☀/🌙** — Hell/Dunkel umschalten; merkt sich die Wahl im Browser
   (Systemeinstellung entscheidet nur beim allerersten Besuch).
 - **⚙** — öffnet die Einstellungen (siehe unten).
@@ -70,22 +77,17 @@ nichts mehr gibt.
 - **Zeilen** — Gesamtzahl gespeicherter Zeilen (ungefähr, nicht exakt
   gezählt — das wäre bei Millionen Zeilen unnötig teuer).
 - **Letzter Abruf** — Zeitpunkt des letzten Abrufversuchs.
-- **Nicht erreichbar** — listet Quellen, die beim letzten Abruf nicht
-  erreichbar waren (Mauszeiger für die genaue Fehlermeldung je Quelle);
-  meist ein Zeichen, dass die openWB-Adresse in den Einstellungen nicht
-  (mehr) stimmt, oder dass der Container das falsche Netzwerk sieht.
-- **Fehler** — erscheint nur bei einem unerwarteten Fehler im gesamten
-  Abruflauf (z. B. ein Datenbankproblem), nicht bei einer einzelnen
-  nicht erreichbaren Quelle — dafür siehe "Nicht erreichbar" oben.
 - **Lücken** — Anzahl erkannter Lücken zwischen zwei Abrufen (weil
   openWBs Log zwischendurch rotiert ist) und wie viele davon aus den
   rotierten Sicherungsdateien wiederhergestellt werden konnten. Wenn
   "wiederhergestellt" hinter "erkannt" zurückbleibt, gingen tatsächlich
-  Zeilen verloren — Abhilfe: kürzeres Abrufintervall in den Einstellungen.
-- **Format-Warnung** — erscheint, wenn ein ungewöhnlich großer Teil der
-  zuletzt abgerufenen Zeilen einer Quelle nicht zum erwarteten Format
-  passte (z. B. wenn openWB sein Log-Format ändert). Ein einzelner
-  mehrzeiliger Traceback reicht dafür nicht aus.
+  Zeilen verloren — Abhilfe: kürzeres Abrufintervall in den Einstellungen
+  (nur sichtbar, wenn tatsächlich Lücken aufgetreten sind; nicht
+  wiederhergestellte Lücken erscheinen zusätzlich im **!**-Knopf oben).
+
+Nicht erreichbare Quellen, ein fehlgeschlagener Abruf, und
+Format-Warnungen erscheinen nicht mehr hier direkt, sondern gesammelt im
+**!**-Knopf oben rechts.
 
 ## Einstellungen (⚙)
 
