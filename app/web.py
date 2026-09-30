@@ -126,10 +126,19 @@ async def api_dates(source: str | None = None):
     return {"dates": dates}
 
 
-@router.get("/api/logs/error-summary")
-async def api_error_summary(hours: int = 24, source: str | None = None, limit: int = 20):
-    """Aggregates ERROR-level lines by logger and a digit-normalized
-    message pattern, over the last `hours` -- surfaces which component is
+# Default cap for the Statistik view (both the JSON API and the htmx
+# fragment routes below) -- the UI never exposed a way to change this, so
+# it's a plain constant rather than a query param wired to nothing.
+STATS_DEFAULT_LIMIT = 20
+
+
+async def _error_summary_rows(pool, hours: int, source: str | None, limit: int):
+    """Shared by api_error_summary (JSON, for the MCP server/external
+    consumers) and the /hx/stats* fragment routes (server-rendered, for
+    the web UI's Statistik panel) -- same query, two presentations.
+
+    Aggregates ERROR-level lines by logger and a digit-normalized message
+    pattern, over the last `hours` -- surfaces which component is
     actually dominant instead of requiring a manual scan through hundreds
     of individual lines. Confirmed live: found one specific device
     responsible for ~45% of all errors over 2 days, completely invisible
@@ -139,14 +148,13 @@ async def api_error_summary(hours: int = 24, source: str | None = None, limit: i
     traceback inherits its first line's logger/level for every subsequent
     frame, which would otherwise count as N separate errors from that
     logger instead of the one real event it actually is."""
-    pool = get_pool()
     cutoff = datetime.now() - timedelta(hours=hours)
     where = ["level = 'ERROR'", "is_continuation = false", "ts >= $1"]
     params: list = [cutoff]
     if source:
         params.append(source)
         where.append(f"source = ${len(params)}")
-    rows = await pool.fetch(
+    return await pool.fetch(
         f"SELECT logger_name, "
         f"regexp_replace(message, '[-+]?[0-9]+\\.?[0-9]*', '#', 'g') AS pattern, "
         f"count(*) AS n, max(ts) AS last_seen "
@@ -154,6 +162,12 @@ async def api_error_summary(hours: int = 24, source: str | None = None, limit: i
         f"GROUP BY logger_name, pattern ORDER BY n DESC LIMIT ${len(params) + 1}",
         *params, limit,
     )
+
+
+@router.get("/api/logs/error-summary")
+async def api_error_summary(hours: int = 24, source: str | None = None, limit: int = 20):
+    pool = get_pool()
+    rows = await _error_summary_rows(pool, hours, source, limit)
     return {
         "hours": hours,
         "rows": [
@@ -164,6 +178,39 @@ async def api_error_summary(hours: int = 24, source: str | None = None, limit: i
             for r in rows
         ],
     }
+
+
+@router.get("/hx/stats", response_class=HTMLResponse)
+async def hx_stats(request: Request, hours: int = 24, source: str | None = None):
+    """The whole Statistik modal (title, Zeitraum select, table) -- opened
+    by the header's "Statistik" button (hx-target="#hx-modal")."""
+    pool = get_pool()
+    rows = await _error_summary_rows(pool, hours, source, STATS_DEFAULT_LIMIT)
+    return templates.TemplateResponse(
+        "hx/stats/panel.html", {"request": request, "hours": hours, "rows": rows}
+    )
+
+
+@router.get("/hx/stats/table", response_class=HTMLResponse)
+async def hx_stats_table(request: Request, hours: int = 24, source: str | None = None):
+    """Just the table, for the Zeitraum select's own hx-get -- re-renders
+    only the part that changed instead of the whole modal."""
+    pool = get_pool()
+    rows = await _error_summary_rows(pool, hours, source, STATS_DEFAULT_LIMIT)
+    return templates.TemplateResponse(
+        "hx/stats/_table.html", {"request": request, "rows": rows}
+    )
+
+
+@router.get("/hx/openwb-info", response_class=HTMLResponse)
+async def hx_openwb_info(request: Request):
+    """openWB's own version/branch/commit/hostname, best-effort parsed
+    from its logged config dump by fetcher.py -- same source /api/status
+    already reads. None until the fetcher has seen a matching line since
+    its last restart."""
+    return templates.TemplateResponse(
+        "hx/openwb_info.html", {"request": request, "info": fetcher.status.openwb_info}
+    )
 
 
 @router.get("/api/levels")

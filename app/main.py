@@ -11,8 +11,10 @@ from __future__ import annotations
 import asyncio
 import logging
 from contextlib import AsyncExitStack, asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from .db import close_pool, get_pool, init_pool
 from .fetcher import fetcher
@@ -54,3 +56,9 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="openwb-logger", lifespan=lifespan)
 app.include_router(router)
 app.mount("/mcp", mcp.streamable_http_app())
+# Vendored third-party JS only (htmx) -- the rest of the frontend stays
+# inlined in index.html, matching this project's one-file-no-build-step
+# approach (see CLAUDE.md). A real static dir, not a CDN, so it works
+# offline on a LAN and survives a self-update the same way the rest of
+# the app does.
+app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")

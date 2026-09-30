@@ -1,0 +1,22 @@
+<div class="modal-overlay" onclick="if (event.target === this) closeHxModal()">
+  <div id="stats-panel">
+    <h2>Statistik -- Top-Fehlerquellen</h2>
+    <div class="field">
+      <label for="stats-hours">Zeitraum</label>
+      <select id="stats-hours" name="hours"
+              hx-get="/hx/stats/table" hx-target="#stats-table-wrap" hx-trigger="change" hx-include="#source">
+        <option value="1" {% if hours == 1 %}selected{% endif %}>Letzte Stunde</option>
+        <option value="24" {% if hours == 24 %}selected{% endif %}>Letzte 24 Stunden</option>
+        <option value="168" {% if hours == 168 %}selected{% endif %}>Letzte 7 Tage</option>
+      </select>
+    </div>
+    <div id="stats-body">
+      <div id="stats-table-wrap">
+        {% include "hx/stats/_table.html" %}
+      </div>
+    </div>
+    <div class="actions">
+      <button type="button" onclick="closeHxModal()">Schließen</button>
+    </div>
+  </div>
+</div>

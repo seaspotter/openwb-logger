@@ -131,11 +131,6 @@
   #purge-msg.error { color: var(--error); }
   #purge-msg.ok { color: var(--accent); }
 
-  #stats-backdrop {
-    display: none; position: fixed; inset: 0; background: var(--backdrop);
-    align-items: flex-start; justify-content: center; padding-top: 8vh; z-index: 10;
-  }
-  #stats-backdrop.open { display: flex; }
   #stats-panel {
     background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
     width: min(900px, 95vw); padding: 18px 20px; max-height: 80vh;
@@ -192,7 +187,7 @@
     </span>
     <h1><span class="brand-mark">openWB</span> Logger</h1>
   </div>
-  <select id="source"></select>
+  <select id="source" name="source"></select>
   <select id="day"></select>
   <span class="range-group" title="Zeitraum (überschreibt die Tagesauswahl)">
     Zeitraum <input id="range-from" type="datetime-local">
@@ -211,14 +206,16 @@
     <button id="paste-export">An Paste senden</button>
     <button id="sort-toggle" class="icon" title="Sortierung umkehren">&#8645;</button>
     <button id="fetch-now">Jetzt abrufen</button>
-    <button id="openwb-info-btn" class="icon" title="openWB-Version">
+    <button id="openwb-info-btn" class="icon" title="openWB-Version"
+            hx-get="/hx/openwb-info" hx-target="#hx-modal">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="10"/>
         <line x1="12" y1="16" x2="12" y2="12"/>
         <line x1="12" y1="8" x2="12.01" y2="8"/>
       </svg>
     </button>
-    <button id="stats-open" class="icon" title="Statistik">
+    <button id="stats-open" class="icon" title="Statistik"
+            hx-get="/hx/stats" hx-target="#hx-modal" hx-include="#source">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <line x1="18" y1="20" x2="18" y2="10"/>
         <line x1="12" y1="20" x2="12" y2="4"/>
@@ -320,35 +317,15 @@
   </div>
 </div>
 
-<div id="stats-backdrop">
-  <div id="stats-panel">
-    <h2>Statistik -- Top-Fehlerquellen</h2>
-    <div class="field">
-      <label for="stats-hours">Zeitraum</label>
-      <select id="stats-hours">
-        <option value="1">Letzte Stunde</option>
-        <option value="24" selected>Letzte 24 Stunden</option>
-        <option value="168">Letzte 7 Tage</option>
-      </select>
-    </div>
-    <div id="stats-body">
-      <p id="stats-empty" style="display:none; color:var(--muted); font-size:13px;">
-        Keine ERROR-Zeilen in diesem Zeitraum.
-      </p>
-      <div id="stats-table-wrap" style="overflow-x:auto;">
-        <table id="stats-table" style="display:none;">
-          <thead>
-            <tr><th>Logger</th><th>Muster</th><th>Anzahl</th><th>Zuletzt</th></tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="actions">
-      <button id="stats-close">Schließen</button>
-    </div>
-  </div>
-</div>
+<!-- Server-rendered dialogs of the htmx-converted parts of the UI (see
+     closeHxModal() below) land here: Statistik (/hx/stats) and the
+     openWB-info modal (/hx/openwb-info) so far. -->
+<div id="hx-modal"></div>
+
+<!-- htmx (vendored, 0BSD -- app/static/vendor/htmx-LICENSE.txt): loaded
+     before the inline script below so its htmx:* listeners are
+     registered and hx-* attributes are live once init() runs. -->
+<script src="/static/vendor/htmx-2.0.11.min.js"></script>
 
 <script>
 // ---- Toasts & confirm/link modal (replaces native alert()/confirm()/prompt(),
@@ -429,6 +406,35 @@ function showLink(message, url) {
     if (ev.target.dataset && ev.target.dataset.action === 'close') modal.close();
   });
 }
+
+// ---- htmx glue (server-rendered fragments, e.g. Statistik/openWB-info
+// modals below) -- same pattern as the sibling project knxpilot's ui.js.
+// Bridges htmx's own events to the toast/confirm/modal helpers above
+// instead of introducing a second, separate UI vocabulary. ----
+document.addEventListener('htmx:confirm', (ev) => {
+  if (!ev.detail.question) return;
+  ev.preventDefault();
+  showConfirm(ev.detail.question).then(ok => { if (ok) ev.detail.issueRequest(true); });
+});
+document.addEventListener('htmx:responseError', (ev) => {
+  let message = `Fehler ${ev.detail.xhr.status}`;
+  try { message = JSON.parse(ev.detail.xhr.responseText).detail || message; } catch (e) { /* not JSON */ }
+  showToast(message, 'error', { sticky: true });
+});
+document.addEventListener('htmx:sendError', () => showToast('Server nicht erreichbar', 'error'));
+// A server response can show a toast: HX-Trigger {"show-toast": {"message", "level"}}.
+document.addEventListener('show-toast', (ev) => showToast(ev.detail.message, ev.detail.level || 'info'));
+// Dialogs rendered server-side land in #hx-modal (see index.html). Closes
+// on Escape, a backdrop click baked into the fragment's own markup (see
+// hx/openwb_info.html/hx/stats/panel.html), or the server sending
+// HX-Trigger "hx-modal-close".
+function closeHxModal() {
+  document.getElementById('hx-modal').innerHTML = '';
+}
+document.addEventListener('hx-modal-close', closeHxModal);
+document.addEventListener('keydown', (ev) => {
+  if (ev.key === 'Escape' && document.getElementById('hx-modal').innerHTML) closeHxModal();
+});
 
 // Must match DEFAULT_PASTE_UPLOAD_URL/DEFAULT_PASTE_VIEW_URL in
 // app/runtime_settings.py -- used only to decide whether the settings
@@ -1187,82 +1193,17 @@ compressionRepairBtn.onclick = async () => {
 };
 
 // ---- openWB-Info ----
-// Best-effort: openwb_info (from /api/status) is null until the fetcher
-// has seen a matching line in "main" at least once since its last
-// restart -- openWB logs its own config dict often enough that this
-// fills in within the first poll or two.
+// The modal body itself is htmx now (hx-get="/hx/openwb-info" on the
+// button, see index.html's header) -- this just keeps the button's
+// hover title live from the same /api/status poll everything else
+// already uses, without needing a request on every hover.
 const openwbInfoBtn = document.getElementById('openwb-info-btn');
-let currentOpenwbInfo = null;
 
 function updateOpenwbInfo(s) {
-  currentOpenwbInfo = s.openwb_info;
-  openwbInfoBtn.title = currentOpenwbInfo
-    ? `openWB ${currentOpenwbInfo.version} (${currentOpenwbInfo.hostname})`
+  openwbInfoBtn.title = s.openwb_info
+    ? `openWB ${s.openwb_info.version} (${s.openwb_info.hostname})`
     : 'openWB-Version noch nicht bekannt';
 }
-
-openwbInfoBtn.onclick = () => {
-  if (!currentOpenwbInfo) {
-    showToast('openWB-Version noch nicht bekannt -- wird beim nächsten Abruf ermittelt.', 'ok');
-    return;
-  }
-  const info = currentOpenwbInfo;
-  const modal = openModal(`
-    <p>openWB-Version</p>
-    <dl class="info-list">
-      <dt>Version</dt><dd>${escapeHtml(info.version)}</dd>
-      <dt>Branch</dt><dd>${escapeHtml(info.current_branch)}</dd>
-      <dt>Commit</dt><dd>${escapeHtml(info.current_commit_short || info.current_commit)}</dd>
-      <dt>Hostname</dt><dd>${escapeHtml(info.hostname)}</dd>
-    </dl>
-    <div class="modal-actions"><button data-action="close">Schließen</button></div>
-  `);
-  modal.overlay.addEventListener('click', (ev) => {
-    if (ev.target.dataset && ev.target.dataset.action === 'close') modal.close();
-  });
-};
-
-// ---- Statistik (Top-Fehlerquellen) ----
-const statsBackdrop = document.getElementById('stats-backdrop');
-const statsHoursEl = document.getElementById('stats-hours');
-const statsTableEl = document.getElementById('stats-table');
-const statsEmptyEl = document.getElementById('stats-empty');
-
-async function loadStats() {
-  // Scoped to the header's currently selected source, same "always
-  // exactly one source, never blended" rule the log view itself follows
-  // (see loadSources() above).
-  const params = new URLSearchParams({ hours: statsHoursEl.value });
-  if (sourceEl.value) params.set('source', sourceEl.value);
-  const res = await fetch('/api/logs/error-summary?' + params.toString());
-  const data = await res.json();
-  const tbody = statsTableEl.querySelector('tbody');
-  tbody.innerHTML = '';
-  if (!data.rows.length) {
-    statsTableEl.style.display = 'none';
-    statsEmptyEl.style.display = '';
-    return;
-  }
-  statsEmptyEl.style.display = 'none';
-  statsTableEl.style.display = '';
-  for (const r of data.rows) {
-    const tr = document.createElement('tr');
-    tr.innerHTML =
-      `<td title="${escapeHtml(r.logger || '')}">${escapeHtml(r.logger || '-')}</td>` +
-      `<td title="${escapeHtml(r.pattern)}">${escapeHtml(r.pattern)}</td>` +
-      `<td>${r.count}</td>` +
-      `<td>${escapeHtml(r.last_seen.replace('T', ' ').slice(0, 19))}</td>`;
-    tbody.appendChild(tr);
-  }
-}
-
-function openStats() { statsBackdrop.classList.add('open'); loadStats(); }
-function closeStats() { statsBackdrop.classList.remove('open'); }
-
-document.getElementById('stats-open').onclick = openStats;
-document.getElementById('stats-close').onclick = closeStats;
-statsBackdrop.onclick = (e) => { if (e.target === statsBackdrop) closeStats(); };
-statsHoursEl.onchange = loadStats;
 
 // ---- Jetzt bereinigen ----
 // Manually triggers drop_chunks now (current Aufbewahrung setting) instead

@@ -75,13 +75,35 @@ variables, no restart. Full picture in `README.md`; details in
   bump incompatible with our `fastapi` pin. Mounting disables the
   library's own lifespan, so `app/main.py`'s lifespan has to enter
   `mcp.session_manager.run()` itself.
-- `app/templates/index.html` — the entire frontend, **in German**: vanilla
-  JS, no build step, polls the JSON API. Theme is CSS custom properties
-  (light default, dark via `prefers-color-scheme` for first-visit only,
-  then an explicit `data-theme` toggle persisted in `localStorage` — a
-  plain light/dark flip, not a three-way cycle through "system", which
-  used to make the first click look like a no-op) — see the design-token
-  block at the top of the file. Keep new UI copy in German too.
+- `app/templates/index.html` — the entire frontend shell, **in German**:
+  vanilla JS, no build step. Theme is CSS custom properties (light
+  default, dark via `prefers-color-scheme` for first-visit only, then an
+  explicit `data-theme` toggle persisted in `localStorage` — a plain
+  light/dark flip, not a three-way cycle through "system", which used to
+  make the first click look like a no-op) — see the design-token block
+  at the top of the file. Keep new UI copy in German too.
+- **htmx migration** (in progress, following the same pattern as the
+  sibling project `knxpilot`): parts of the UI are being converted from
+  client-rendered JSON+JS to server-rendered htmx fragments, one section
+  at a time. htmx is vendored (not CDN) at
+  `app/static/vendor/htmx-2.0.11.min.js`, served via a `/static` mount in
+  `app/main.py`; fragment templates live under `app/templates/hx/<section>/`,
+  returned by dedicated `/hx/...` routes in `app/web.py` (existing JSON
+  `/api/...` routes stay, for the MCP server/external consumers). Shared
+  htmx wiring (the `htmx:confirm` → app's own `showConfirm()` modal,
+  `HX-Trigger: show-toast`/`hx-modal-close`, the `#hx-modal` dialog
+  target) is inlined in `index.html`'s existing `<script>` block, reusing
+  the `showToast`/`showConfirm`/`openModal` helpers already there — no
+  separate `ui.js`, unlike knxpilot's multi-file frontend, since this
+  project deliberately keeps everything in one file. No client-side
+  timezone handling either (knxpilot needs one; this project's
+  timestamps are already naive/local by design, see below). So far:
+  the Statistik panel (`/hx/stats`, `/hx/stats/table`) and the
+  openWB-info modal (`/hx/openwb-info`). Not every section is a good
+  htmx candidate — e.g. the alerts modal is deliberately staying
+  client-rendered, since its data already arrives via the existing 5s
+  `/api/status` poll and a separate `hx-get` would just be a redundant
+  round-trip for data already fetched seconds earlier.
 
 Storage is TimescaleDB only — there is deliberately no flat-file log
 output. Retention is a database policy (`add_retention_policy`), not

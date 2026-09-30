@@ -7,6 +7,18 @@ what that means in practice for this project.
 ## [Unreleased]
 
 ### Changed
+- Started migrating the frontend to htmx, following the same pattern
+  already established in the sibling project `knxpilot`: server-rendered
+  fragments returned by dedicated `/hx/...` routes instead of client-side
+  JSON+JS templating, converted one section at a time. Phase 1: htmx
+  vendored locally (not CDN) at `app/static/vendor/`, served via a new
+  `/static` mount; the Statistik panel and the openWB-info modal are now
+  htmx fragments (`/hx/stats`, `/hx/stats/table`, `/hx/openwb-info`).
+  Existing JSON `/api/...` routes are unaffected (kept for the MCP
+  server/external consumers). No user-visible behavior change -- same
+  data, same look, same interactions.
+
+### Changed
 - Deep code/docs review: removed a dead field (`ParsedLine["raw"]` in
   `log_parse.py`, computed on every parsed line but never read by any
   caller -- a leftover from before the DB's own `raw` column was dropped

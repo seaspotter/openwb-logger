@@ -1,0 +1,18 @@
+<div class="modal-overlay" onclick="if (event.target === this) closeHxModal()">
+  <div class="modal-card">
+    {% if info %}
+    <p>openWB-Version</p>
+    <dl class="info-list">
+      <dt>Version</dt><dd>{{ info.version }}</dd>
+      <dt>Branch</dt><dd>{{ info.current_branch }}</dd>
+      <dt>Commit</dt><dd>{{ info.current_commit_short or info.current_commit }}</dd>
+      <dt>Hostname</dt><dd>{{ info.hostname }}</dd>
+    </dl>
+    {% else %}
+    <p>openWB-Version noch nicht bekannt -- wird beim nächsten Abruf ermittelt.</p>
+    {% endif %}
+    <div class="modal-actions">
+      <button type="button" onclick="closeHxModal()">Schließen</button>
+    </div>
+  </div>
+</div>

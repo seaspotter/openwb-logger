@@ -1,0 +1,19 @@
+{% if rows %}
+<table id="stats-table">
+  <thead>
+    <tr><th>Logger</th><th>Muster</th><th>Anzahl</th><th>Zuletzt</th></tr>
+  </thead>
+  <tbody>
+    {% for r in rows %}
+    <tr>
+      <td title="{{ r.logger_name or '' }}">{{ r.logger_name or '-' }}</td>
+      <td title="{{ r.pattern }}">{{ r.pattern }}</td>
+      <td>{{ r.n }}</td>
+      <td>{{ r.last_seen.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p id="stats-empty">Keine ERROR-Zeilen in diesem Zeitraum.</p>
+{% endif %}
