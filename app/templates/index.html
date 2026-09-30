@@ -913,12 +913,20 @@ document.addEventListener('settings-changed', async (ev) => {
 });
 
 // ---- Update ----
-const updateBtn = document.getElementById('update-btn');
-const updateCheckBtn = document.getElementById('update-check');
-const updateCommitEl = document.getElementById('update-commit');
-const updateMsgEl = document.getElementById('update-msg');
-
+// This markup now lives inside the htmx-rendered settings form (see
+// hx/settings/form.html): #update-btn etc. don't exist at page load (not
+// until Settings has been opened once), and are brand-new DOM nodes
+// after every re-render (save/repair) -- so both the element lookups
+// and the click-handler wiring happen fresh on every call here, instead
+// of once at page load against elements that used to be static. Called
+// via the htmx:afterSwap listener below, on every render of the form.
 async function loadUpdateInfo() {
+  const updateCommitEl = document.getElementById('update-commit');
+  if (!updateCommitEl) return; // Settings hasn't been opened yet
+  const updateMsgEl = document.getElementById('update-msg');
+  const updateBtn = document.getElementById('update-btn');
+  const updateCheckBtn = document.getElementById('update-check');
+
   updateMsgEl.textContent = '';
   updateMsgEl.className = '';
   const res = await fetch('/api/update/version');
@@ -929,22 +937,48 @@ async function loadUpdateInfo() {
   // dead button is just clutter, not a useful affordance to grey out.
   updateBtn.style.display = data.available ? '' : 'none';
   updateCheckBtn.style.display = data.available ? '' : 'none';
-}
 
-updateCheckBtn.onclick = async () => {
-  updateMsgEl.textContent = 'Suche nach Updates...';
-  updateMsgEl.className = '';
-  const data = await (await fetch('/api/update/check')).json();
-  if (data.error) {
-    updateMsgEl.textContent = 'Prüfung fehlgeschlagen: ' + data.error;
-    updateMsgEl.className = 'error';
-    return;
-  }
-  updateMsgEl.textContent = data.update_available
-    ? `Update verfügbar (${data.current} → ${data.latest})`
-    : `Aktuell (${data.current})`;
-  updateMsgEl.className = 'ok';
-};
+  updateCheckBtn.onclick = async () => {
+    updateMsgEl.textContent = 'Suche nach Updates...';
+    updateMsgEl.className = '';
+    const checkData = await (await fetch('/api/update/check')).json();
+    if (checkData.error) {
+      updateMsgEl.textContent = 'Prüfung fehlgeschlagen: ' + checkData.error;
+      updateMsgEl.className = 'error';
+      return;
+    }
+    updateMsgEl.textContent = checkData.update_available
+      ? `Update verfügbar (${checkData.current} → ${checkData.latest})`
+      : `Aktuell (${checkData.current})`;
+    updateMsgEl.className = 'ok';
+  };
+
+  updateBtn.onclick = async () => {
+    if (!(await showConfirm('Neueste Version laden und die Anwendung jetzt neu starten?'))) return;
+    updateBtn.disabled = true;
+    const originalText = updateBtn.textContent;
+    updateBtn.textContent = 'Wird aktualisiert...';
+    try {
+      const result = await (await fetch('/api/update', { method: 'POST' })).json();
+      if (!result.ok) {
+        updateMsgEl.textContent = 'Update fehlgeschlagen: ' + result.message;
+        updateMsgEl.className = 'error';
+        return;
+      }
+      if (result.restarting) {
+        updateMsgEl.textContent = 'Startet neu...';
+        updateMsgEl.className = 'ok';
+        await waitForRestartThenReload();
+        return;
+      }
+      updateMsgEl.textContent = result.message;
+      updateMsgEl.className = 'ok';
+    } finally {
+      updateBtn.disabled = false;
+      updateBtn.textContent = originalText;
+    }
+  };
+}
 
 async function waitForRestartThenReload() {
   // docker-compose's restart policy brings the process back within a
@@ -956,34 +990,9 @@ async function waitForRestartThenReload() {
       if ((await fetch('/api/status')).ok) { window.location.reload(); return; }
     } catch (e) { /* still restarting */ }
   }
-  updateMsgEl.textContent = 'Startet noch... bitte in Kürze manuell neu laden.';
+  const updateMsgEl = document.getElementById('update-msg');
+  if (updateMsgEl) updateMsgEl.textContent = 'Startet noch... bitte in Kürze manuell neu laden.';
 }
-
-updateBtn.onclick = async () => {
-  if (!(await showConfirm('Neueste Version laden und die Anwendung jetzt neu starten?'))) return;
-  updateBtn.disabled = true;
-  const originalText = updateBtn.textContent;
-  updateBtn.textContent = 'Wird aktualisiert...';
-  try {
-    const result = await (await fetch('/api/update', { method: 'POST' })).json();
-    if (!result.ok) {
-      updateMsgEl.textContent = 'Update fehlgeschlagen: ' + result.message;
-      updateMsgEl.className = 'error';
-      return;
-    }
-    if (result.restarting) {
-      updateMsgEl.textContent = 'Startet neu...';
-      updateMsgEl.className = 'ok';
-      await waitForRestartThenReload();
-      return;
-    }
-    updateMsgEl.textContent = result.message;
-    updateMsgEl.className = 'ok';
-  } finally {
-    updateBtn.disabled = false;
-    updateBtn.textContent = originalText;
-  }
-};
 
 // ---- openWB-Info ----
 // The modal body itself is htmx now (hx-get="/hx/openwb-info" on the
