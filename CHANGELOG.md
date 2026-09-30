@@ -6,34 +6,33 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
-### Changed
-- Continued migrating the frontend to htmx (see below for phase 1):
-  the Settings panel is now server-rendered too (`GET`/`PUT /hx/settings`,
-  `/hx/retention/purge-preview`, `/hx/retention/purge`,
+## [0.6.0] - 2026-10-01
+
+### Added
+- Migrated most of the frontend to htmx, following the same pattern
+  already established in the sibling project `knxpilot`: server-rendered
+  fragments returned by dedicated `/hx/...` routes instead of client-side
+  JSON+JS templating, converted one section at a time rather than a
+  big-bang rewrite. htmx vendored locally (not CDN) at
+  `app/static/vendor/`, served via a new `/static` mount. Converted:
+  the Statistik panel (`/hx/stats`, `/hx/stats/table`), the openWB-info
+  modal (`/hx/openwb-info`), and the Settings panel (`GET`/`PUT
+  /hx/settings`, `/hx/retention/purge-preview`, `/hx/retention/purge`,
   `/hx/retention/repair`, `/hx/compression/repair`) -- the old
   `/api/retention/purge-now`, `/api/retention/repair`,
   `/api/compression/repair` JSON routes are removed entirely (no
-  external consumer ever used them, only the web UI, so keeping both
-  would've just been duplicated logic). Fixed a real, previously-known
-  UX gap in passing: "Jetzt bereinigen" now uses whatever's currently
+  external consumer ever used them, only the web UI). Existing JSON
+  `/api/...` routes used elsewhere are unaffected (kept for the MCP
+  server/external consumers). Not every section converted: the alerts
+  modal and the main log view (live-tail, keyset pagination, filters,
+  sort toggle) deliberately stay client-rendered -- see `CLAUDE.md` for
+  why in both cases; forcing a bad fit isn't the goal of this migration.
+- Fixed a real, previously-known UX gap in passing, as part of the
+  Settings conversion: "Jetzt bereinigen" now uses whatever's currently
   typed in the Aufbewahrung field, even if not yet saved, instead of
-  silently falling back to the last-saved value (confusing: typing a new
-  number and clicking the button used to preview/purge against the old
-  one). One small, disclosed cosmetic change: "Exportierte Datei
-  komprimieren (.gz)" (a pure browser preference, never part of the
-  server-side settings) moved from mid-list to the top of the panel --
-  it's a static field outside the htmx-rendered form now, since there's
-  nothing server-side for it to fetch.
-- Started migrating the frontend to htmx, following the same pattern
-  already established in the sibling project `knxpilot`: server-rendered
-  fragments returned by dedicated `/hx/...` routes instead of client-side
-  JSON+JS templating, converted one section at a time. Phase 1: htmx
-  vendored locally (not CDN) at `app/static/vendor/`, served via a new
-  `/static` mount; the Statistik panel and the openWB-info modal are now
-  htmx fragments (`/hx/stats`, `/hx/stats/table`, `/hx/openwb-info`).
-  Existing JSON `/api/...` routes are unaffected (kept for the MCP
-  server/external consumers). No user-visible behavior change -- same
-  data, same look, same interactions.
+  silently falling back to the last-saved value (confusing: typing a
+  new number and clicking the button used to preview/purge against the
+  old one).
 
 ### Changed
 - Deep code/docs review: removed a dead field (`ParsedLine["raw"]` in
@@ -54,6 +53,23 @@ what that means in practice for this project.
   `get_storage_info`; `ROADMAP.md`'s "Done (v0.1.0)" heading was
   mislabeled (most of its bullets shipped in v0.2.0-v0.5.x) and missing
   several real features shipped since.
+- One small, disclosed cosmetic change from the Settings conversion:
+  "Exportierte Datei komprimieren (.gz)" (a pure browser preference,
+  never part of the server-side settings) moved from mid-list to the
+  top of the panel -- it's a static field outside the htmx-rendered
+  form now, since there's nothing server-side for it to fetch.
+
+### Fixed
+- The Settings htmx conversion briefly broke the entire page (confirmed
+  live): `update-btn`/`update-check`/`update-commit`/`update-msg` moved
+  into the htmx-rendered form, but the JS still looked them up
+  unconditionally at page load, before the fragment ever rendered --
+  hitting `null` and throwing on the very next line
+  (`updateBtn.onclick = ...`), an uncaught exception that silently
+  halted the rest of the script, including `init()` (so the log view
+  never loaded at all). Fixed by moving the lookups and click-handler
+  wiring into `loadUpdateInfo()` itself, re-run after every render of
+  the form instead of once at page load.
 
 ## [0.5.1] - 2026-09-16
 
