@@ -4,11 +4,12 @@ asyncpg -- no other storage."""
 from __future__ import annotations
 
 import gzip
+import json
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import httpx
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Form, HTTPException, Query
 from fastapi.responses import HTMLResponse, PlainTextResponse, Response
 from fastapi.templating import Jinja2Templates
 from starlette.requests import Request
@@ -16,7 +17,13 @@ from starlette.requests import Request
 from .db import RAW_EXPR, get_pool
 from .fetcher import fetcher
 from .log_catalog import CATALOG
-from .runtime_settings import ValidationError, get_settings, update_settings
+from .runtime_settings import (
+    DEFAULT_PASTE_UPLOAD_URL,
+    DEFAULT_PASTE_VIEW_URL,
+    ValidationError,
+    get_settings,
+    update_settings,
+)
 from .updater import check_for_update, get_current_version, run_update, self_update_available
 
 router = APIRouter()
@@ -425,27 +432,19 @@ async def api_fetch_now():
     return {"ok": True}
 
 
-@router.post("/api/retention/purge-now")
-async def api_retention_purge_now(dry_run: bool = False):
-    """Manually triggers drop_chunks now, using the current retention_days
-    setting, instead of waiting for TimescaleDB's own once-a-day scheduled
-    retention job. dry_run only counts what would be removed.
-
-    Counts (and drops) at whole-chunk granularity, matching drop_chunks'
-    own semantics: some rows older than retention_days may remain if they
-    share a chunk with newer, still-retained rows (see DEPLOYMENT.md) --
-    the count here reflects that honestly rather than a naive `ts <
-    cutoff` count that would overstate what actually gets removed."""
-    pool = get_pool()
-    rt = await get_settings(pool)
-    days = rt["retention_days"]
+async def _purge_preview(pool, days: int) -> tuple[datetime | None, int]:
+    """Cutoff and row count for a retention purge at whole-chunk
+    granularity, matching drop_chunks' own semantics: some rows older
+    than `days` may remain if they share a chunk with newer, still-
+    retained rows (see DEPLOYMENT.md). Shared by the two /hx/retention/
+    purge* routes below -- preview and the real purge both need this."""
     cutoff = await pool.fetchval(
         "SELECT max(range_end) FROM timescaledb_information.chunks "
         "WHERE hypertable_name = 'log_lines' AND range_end <= now() - make_interval(days => $1)",
         days,
     )
     if cutoff is None:
-        return {"ok": True, "removed_rows": 0, "dry_run": dry_run}
+        return None, 0
     # timescaledb_information.chunks always reports range_end as
     # timestamptz (tz-aware), even though log_lines.ts is a naive
     # TIMESTAMP (see CLAUDE.md) -- binding the aware value as-is crashes
@@ -455,32 +454,47 @@ async def api_retention_purge_now(dry_run: bool = False):
     # dropping the tzinfo recovers the original naive value exactly.
     cutoff = cutoff.replace(tzinfo=None)
     removed_rows = await pool.fetchval("SELECT count(*) FROM log_lines WHERE ts < $1", cutoff)
-    if not dry_run:
-        await pool.execute(
-            "SELECT drop_chunks('log_lines', older_than => make_interval(days => $1))", days
-        )
-    return {"ok": True, "removed_rows": removed_rows, "dry_run": dry_run}
+    return cutoff, removed_rows
 
 
-@router.post("/api/retention/repair")
-async def api_retention_repair():
+@router.post("/hx/retention/purge-preview", response_class=HTMLResponse)
+async def hx_retention_purge_preview(request: Request, retention_days: int = Form(...)):
+    pool = get_pool()
+    _, removed_rows = await _purge_preview(pool, retention_days)
+    state = "confirm" if removed_rows else "empty"
+    return templates.TemplateResponse(
+        "hx/settings/_purge_result.html",
+        {"request": request, "state": state, "removed_rows": removed_rows},
+    )
+
+
+@router.post("/hx/retention/purge", response_class=HTMLResponse)
+async def hx_retention_purge(request: Request, retention_days: int = Form(...)):
+    _, removed_rows = await _purge_preview(get_pool(), retention_days)
+    await get_pool().execute(
+        "SELECT drop_chunks('log_lines', older_than => make_interval(days => $1))", retention_days
+    )
+    return templates.TemplateResponse(
+        "hx/settings/_purge_result.html",
+        {"request": request, "state": "done", "removed_rows": removed_rows},
+    )
+
+
+async def _repair_retention_catalog(pool) -> int:
     """Removes any _timescaledb_catalog.chunk_constraint (and now-orphaned
     dimension_slice) rows referencing a chunk_id that no longer exists in
     _timescaledb_catalog.chunk -- a dangling-reference bug in TimescaleDB
     itself that gets its own retention job permanently stuck failing every
     run with "no chunk found with ID N" (see DEPLOYMENT.md's
-    troubleshooting entry). Explicitly triggered from the settings panel,
-    never automatically -- this pokes at TimescaleDB's own undocumented
-    internal catalog tables, which is worth a human confirming each time
-    rather than running unattended. Only ever removes bookkeeping for
-    chunks already gone; touches no actual log data."""
-    pool = get_pool()
+    troubleshooting entry). Only ever removes bookkeeping for chunks
+    already gone; touches no actual log data. Returns how many rows were
+    removed."""
     orphaned = await pool.fetch(
         "SELECT chunk_id, dimension_slice_id FROM _timescaledb_catalog.chunk_constraint cc "
         "WHERE NOT EXISTS (SELECT 1 FROM _timescaledb_catalog.chunk c WHERE c.id = cc.chunk_id)"
     )
     if not orphaned:
-        return {"ok": True, "removed": 0}
+        return 0
     chunk_ids = [r["chunk_id"] for r in orphaned]
     slice_ids = [r["dimension_slice_id"] for r in orphaned]
     async with pool.acquire() as conn:
@@ -497,11 +511,10 @@ async def api_retention_repair():
                 ")",
                 slice_ids,
             )
-    return {"ok": True, "removed": len(orphaned)}
+    return len(orphaned)
 
 
-@router.post("/api/compression/repair")
-async def api_compression_repair():
+async def _repair_compression_policy(pool) -> None:
     """Recreates the compression policy (remove_compression_policy +
     add_compression_policy) to clear a confirmed-live TimescaleDB failure
     mode: after a chunk is dropped (e.g. via "Jetzt bereinigen" or the
@@ -510,19 +523,140 @@ async def api_compression_repair():
     afterwards -- "columnstore policy failure... Failed to convert '1'
     chunks" with no chunk of that name left anywhere in
     _timescaledb_catalog.chunk (see DEPLOYMENT.md's troubleshooting
-    entry). Recreating the policy resets that state; it touches no
-    actual log data and compress_after stays the same (1 day, matching
-    db.py's bootstrap). Won't help if the real cause is low disk space
-    instead (the job will just fail again next run) -- that case is
-    diagnosed separately via the raw container log, not fixable by this
-    endpoint."""
-    pool = get_pool()
+    entry). Touches no actual log data; compress_after stays the same (1
+    day, matching db.py's bootstrap). Won't help if the real cause is low
+    disk space instead (the job will just fail again next run) -- that
+    case is diagnosed separately via the raw container log, not fixable
+    here."""
     async with pool.acquire() as conn:
         await conn.execute("SELECT remove_compression_policy('log_lines')")
         await conn.execute(
             "SELECT add_compression_policy('log_lines', INTERVAL '1 day', if_not_exists => TRUE)"
         )
-    return {"ok": True}
+
+
+async def _job_status(pool, proc_name: str) -> tuple[bool, str | None]:
+    """(unhealthy, last_error_message). Catches a real incident:
+    TimescaleDB's own retention job can get stuck failing forever (a
+    dangling internal catalog reference to an already-dropped chunk --
+    see DEPLOYMENT.md's troubleshooting entry), silently never actually
+    dropping old data despite the policy being "configured" correctly.
+    Compression runs via the same kind of background job
+    (policy_compression) and gets the same blind-spot risk -- checked
+    identically; confirmed live, a dropped chunk can similarly leave its
+    candidate state stuck on a chunk that's fully gone, failing every run
+    regardless of free disk space (_repair_compression_policy() above
+    clears it -- a separate, disk-space-caused failure looks the same
+    here but needs growing the disk instead).
+
+    The message is job_errors' *outer* error text (e.g. "columnstore
+    policy failure ..." or "no chunk found with ID N") -- enough to tell
+    at a glance which of the two known failure shapes this is, but not
+    the full underlying detail (e.g. "No space left on device" for a
+    compression failure caused by low disk), which only ever appears in
+    the raw Postgres log stream, not anywhere queryable via SQL -- see
+    DEPLOYMENT.md."""
+    job = await pool.fetchrow(
+        "SELECT job_id, last_run_started_at, last_successful_finish, total_runs "
+        "FROM timescaledb_information.job_stats WHERE job_id = ("
+        "  SELECT job_id FROM timescaledb_information.jobs "
+        "  WHERE proc_name = $1 LIMIT 1"
+        ")",
+        proc_name,
+    )
+    unhealthy = bool(
+        job and job["total_runs"] > 0
+        and job["last_run_started_at"] > job["last_successful_finish"]
+    )
+    if not unhealthy:
+        return False, None
+    err = await pool.fetchval(
+        "SELECT err_message FROM timescaledb_information.job_errors WHERE job_id = $1 LIMIT 1",
+        job["job_id"],
+    )
+    return True, err
+
+
+async def _settings_form_response(request: Request, pool, error: str | None = None):
+    rt = await get_settings(pool)
+    uses_custom_paste = (
+        rt["paste_upload_url"] != DEFAULT_PASTE_UPLOAD_URL
+        or rt["paste_view_url"] != DEFAULT_PASTE_VIEW_URL
+    )
+    retention_unhealthy, retention_error = await _job_status(pool, "policy_retention")
+    compression_unhealthy, compression_error = await _job_status(pool, "policy_compression")
+    return templates.TemplateResponse(
+        "hx/settings/form.html",
+        {
+            "request": request, "settings": rt, "catalog": CATALOG,
+            "uses_custom_paste": uses_custom_paste, "error": error,
+            "retention_unhealthy": retention_unhealthy, "retention_error": retention_error,
+            "compression_unhealthy": compression_unhealthy, "compression_error": compression_error,
+        },
+    )
+
+
+@router.get("/hx/settings", response_class=HTMLResponse)
+async def hx_settings(request: Request):
+    return await _settings_form_response(request, get_pool())
+
+
+@router.put("/hx/settings", response_class=HTMLResponse)
+async def hx_settings_save(request: Request):
+    """Form-encoded (not JSON, unlike the old /api/settings): a plain
+    <form hx-put> submission. enabled_sources arrives as a repeated field
+    (one per checked checkbox), hence the manual request.form() parsing
+    rather than FastAPI's usual typed Form(...) parameters."""
+    pool = get_pool()
+    form = await request.form()
+    use_custom_paste = "paste_custom" in form
+    patch = {
+        "openwb_base_url": form.get("openwb_base_url", ""),
+        "openwb_ramdisk_path": form.get("openwb_ramdisk_path", ""),
+        "enabled_sources": form.getlist("enabled_sources"),
+        "fetch_interval_seconds": form.get("fetch_interval_seconds", ""),
+        "retention_days": form.get("retention_days", ""),
+        "page_size": form.get("page_size", ""),
+        "paste_upload_url": (
+            form.get("paste_upload_url", "") if use_custom_paste else DEFAULT_PASTE_UPLOAD_URL
+        ),
+        "paste_view_url": (
+            form.get("paste_view_url", "") if use_custom_paste else DEFAULT_PASTE_VIEW_URL
+        ),
+    }
+    try:
+        rt = await update_settings(pool, patch)
+    except ValidationError as exc:
+        return await _settings_form_response(request, pool, error=str(exc))
+    response = await _settings_form_response(request, pool)
+    # Tells the rest of the page (outside this fragment) to pick up the
+    # new settings -- source list, dates, levels, the current log view,
+    # and the header's page_size (see the "settings-changed" listener).
+    response.headers["HX-Trigger"] = json.dumps({"settings-changed": {"page_size": rt["page_size"]}})
+    return response
+
+
+@router.post("/hx/retention/repair", response_class=HTMLResponse)
+async def hx_retention_repair(request: Request):
+    pool = get_pool()
+    removed = await _repair_retention_catalog(pool)
+    message = (
+        f"{removed} verwaiste Einträge entfernt." if removed else "Keine verwaisten Einträge gefunden."
+    )
+    response = await _settings_form_response(request, pool)
+    response.headers["HX-Trigger"] = json.dumps({"show-toast": {"message": message, "level": "info"}})
+    return response
+
+
+@router.post("/hx/compression/repair", response_class=HTMLResponse)
+async def hx_compression_repair(request: Request):
+    pool = get_pool()
+    await _repair_compression_policy(pool)
+    response = await _settings_form_response(request, pool)
+    response.headers["HX-Trigger"] = json.dumps(
+        {"show-toast": {"message": "Kompressions-Job neu eingerichtet.", "level": "info"}}
+    )
+    return response
 
 
 @router.get("/api/status")
@@ -548,49 +682,8 @@ async def api_status():
         recent_since,
     )
     recent_errors = {r["source"]: r["n"] for r in error_rows}
-    # Catches a real incident: TimescaleDB's own retention job can get stuck
-    # failing forever (a dangling internal catalog reference to an
-    # already-dropped chunk -- see DEPLOYMENT.md's troubleshooting entry),
-    # silently never actually dropping old data despite the policy being
-    # "configured" correctly. Compression runs via the same kind of
-    # background job (policy_compression) and gets the same blind-spot risk
-    # -- checked identically. Confirmed live: a dropped chunk can similarly
-    # leave the compression job's own candidate state stuck on a chunk
-    # that's fully gone, failing every run regardless of free disk space;
-    # api_compression_repair() above recreates the policy to clear it (a
-    # separate, disk-space-caused failure looks the same here but needs
-    # growing the disk instead -- see DEPLOYMENT.md).
-    async def _job_status(proc_name: str) -> tuple[bool, str | None]:
-        """(unhealthy, last_error_message). The message is job_errors'
-        *outer* error text (e.g. "columnstore policy failure ..." or "no
-        chunk found with ID N") -- enough to tell at a glance which of the
-        two known failure shapes this is, but not the full underlying
-        detail (e.g. "No space left on device" for a compression failure
-        caused by low disk), which only ever appears in the raw Postgres
-        log stream, not anywhere queryable via SQL -- see DEPLOYMENT.md."""
-        job = await pool.fetchrow(
-            "SELECT job_id, last_run_started_at, last_successful_finish, total_runs "
-            "FROM timescaledb_information.job_stats WHERE job_id = ("
-            "  SELECT job_id FROM timescaledb_information.jobs "
-            "  WHERE proc_name = $1 LIMIT 1"
-            ")",
-            proc_name,
-        )
-        unhealthy = bool(
-            job and job["total_runs"] > 0
-            and job["last_run_started_at"] > job["last_successful_finish"]
-        )
-        if not unhealthy:
-            return False, None
-        err = await pool.fetchval(
-            "SELECT err_message FROM timescaledb_information.job_errors "
-            "WHERE job_id = $1 LIMIT 1",
-            job["job_id"],
-        )
-        return True, err
-
-    retention_job_unhealthy, retention_job_error = await _job_status("policy_retention")
-    compression_job_unhealthy, compression_job_error = await _job_status("policy_compression")
+    retention_job_unhealthy, retention_job_error = await _job_status(pool, "policy_retention")
+    compression_job_unhealthy, compression_job_error = await _job_status(pool, "policy_compression")
     rt = await get_settings(pool)
     s = fetcher.status
     return {

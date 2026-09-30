@@ -7,6 +7,23 @@ what that means in practice for this project.
 ## [Unreleased]
 
 ### Changed
+- Continued migrating the frontend to htmx (see below for phase 1):
+  the Settings panel is now server-rendered too (`GET`/`PUT /hx/settings`,
+  `/hx/retention/purge-preview`, `/hx/retention/purge`,
+  `/hx/retention/repair`, `/hx/compression/repair`) -- the old
+  `/api/retention/purge-now`, `/api/retention/repair`,
+  `/api/compression/repair` JSON routes are removed entirely (no
+  external consumer ever used them, only the web UI, so keeping both
+  would've just been duplicated logic). Fixed a real, previously-known
+  UX gap in passing: "Jetzt bereinigen" now uses whatever's currently
+  typed in the Aufbewahrung field, even if not yet saved, instead of
+  silently falling back to the last-saved value (confusing: typing a new
+  number and clicking the button used to preview/purge against the old
+  one). One small, disclosed cosmetic change: "Exportierte Datei
+  komprimieren (.gz)" (a pure browser preference, never part of the
+  server-side settings) moved from mid-list to the top of the panel --
+  it's a static field outside the htmx-rendered form now, since there's
+  nothing server-side for it to fetch.
 - Started migrating the frontend to htmx, following the same pattern
   already established in the sibling project `knxpilot`: server-rendered
   fragments returned by dedicated `/hx/...` routes instead of client-side

@@ -98,8 +98,21 @@ variables, no restart. Full picture in `README.md`; details in
   project deliberately keeps everything in one file. No client-side
   timezone handling either (knxpilot needs one; this project's
   timestamps are already naive/local by design, see below). So far:
-  the Statistik panel (`/hx/stats`, `/hx/stats/table`) and the
-  openWB-info modal (`/hx/openwb-info`). Not every section is a good
+  the Statistik panel (`/hx/stats`, `/hx/stats/table`), the openWB-info
+  modal (`/hx/openwb-info`), and the Settings panel (`/hx/settings`,
+  `/hx/retention/purge-preview`, `/hx/retention/purge`, `/hx/retention/repair`,
+  `/hx/compression/repair`) — the old `/api/retention/purge-now`,
+  `/api/retention/repair`, `/api/compression/repair` JSON routes are gone
+  (no external consumer ever used them, only the web UI). Not every
+  sub-piece of Settings converted: the export-gzip checkbox stays a
+  static, always-present field (it's a pure browser/localStorage
+  preference, never part of the server-side settings at all, so there's
+  nothing for htmx to fetch); the "Version"/self-update section's markup
+  is part of the fragment but its *behavior* (checking for updates,
+  restarting, polling until the process comes back) stays plain JS
+  (`loadUpdateInfo()`, re-run via `htmx:afterSwap` after every fragment
+  render) since that polling-for-restart logic doesn't fit htmx's
+  request/response/swap model. Not every section is a good
   htmx candidate — e.g. the alerts modal is deliberately staying
   client-rendered, since its data already arrives via the existing 5s
   `/api/status` poll and a separate `hx-get` would just be a redundant

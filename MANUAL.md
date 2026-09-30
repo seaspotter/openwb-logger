@@ -103,10 +103,12 @@ Format-Warnungen erscheinen nicht mehr hier direkt, sondern gesammelt im
 - **Aufbewahrung** — nach wie vielen Tagen Zeilen automatisch gelöscht
   werden. **Jetzt bereinigen** löst das sofort aus (mit Vorschau der
   betroffenen Zeilenzahl vor der Bestätigung), statt auf den nächsten
-  planmäßigen Lauf von TimescaleDBs eigenem Aufbewahrungs-Job zu warten.
-  Löscht immer ganze Chunks: einzelne Zeilen, die älter als die
-  Aufbewahrungsfrist sind, aber noch in einem ansonsten aktuellen Chunk
-  liegen, bleiben bis dieser komplett abläuft.
+  planmäßigen Lauf von TimescaleDBs eigenem Aufbewahrungs-Job zu warten
+  — verwendet dabei den gerade im Feld stehenden Wert, auch wenn er noch
+  nicht per **Speichern** übernommen wurde. Löscht immer ganze Chunks:
+  einzelne Zeilen, die älter als die Aufbewahrungsfrist sind, aber noch
+  in einem ansonsten aktuellen Chunk liegen, bleiben bis dieser komplett
+  abläuft.
 - **Zeilen pro Seite** — wie viele Zeilen auf einmal geladen werden (gilt
   für "Heute (live)" und normales Blättern; Zeitraum hat eine eigene,
   höhere Grenze, siehe oben).

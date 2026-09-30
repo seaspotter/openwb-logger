@@ -1,0 +1,10 @@
+{% if state == 'empty' %}
+<span>Nichts zu bereinigen -- keine ganzen Chunks älter als die Aufbewahrungsfrist.</span>
+{% elif state == 'confirm' %}
+<span>{{ removed_rows }} Zeilen jetzt löschen (statt auf den nächsten planmäßigen Lauf zu warten)?</span>
+<button type="button" hx-post="/hx/retention/purge" hx-target="#purge-msg" hx-include="#s-retention">
+  Ja, {{ removed_rows }} Zeilen löschen
+</button>
+{% elif state == 'done' %}
+<span>{{ removed_rows }} Zeilen gelöscht.</span>
+{% endif %}

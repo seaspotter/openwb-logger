@@ -1,0 +1,85 @@
+<form id="settings-actual-form" hx-put="/hx/settings" hx-target="#settings-panel-body">
+  {% if error %}
+  <div id="settings-msg" class="error">{{ error }}</div>
+  {% endif %}
+  <div class="field">
+    <label for="s-base-url">openWB-Adresse (Basis-URL)</label>
+    <input id="s-base-url" name="openwb_base_url" type="text" placeholder="http://10.1.5.32" value="{{ settings.openwb_base_url }}">
+  </div>
+  <div class="field">
+    <label for="s-ramdisk">Ramdisk-Pfad</label>
+    <input id="s-ramdisk" name="openwb_ramdisk_path" type="text" placeholder="/openWB/ramdisk" value="{{ settings.openwb_ramdisk_path }}">
+  </div>
+  <div class="field">
+    <label>Zu erfassende Logs</label>
+    <div class="sources" id="s-sources">
+      {% for name, meta in catalog.items() %}
+      <label>
+        <input type="checkbox" name="enabled_sources" value="{{ name }}" {% if name in settings.enabled_sources %}checked{% endif %}>
+        {{ meta.label }} <span style="color:var(--muted)">({{ meta.format }})</span>
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="field">
+    <label for="s-interval">Abrufintervall (Sekunden)</label>
+    <input id="s-interval" name="fetch_interval_seconds" type="number" min="60" step="60" value="{{ settings.fetch_interval_seconds }}">
+  </div>
+  <div class="field">
+    <label for="s-retention">Aufbewahrung (Tage)</label>
+    <input id="s-retention" name="retention_days" type="number" min="1" value="{{ settings.retention_days }}">
+    <button type="button" hx-post="/hx/retention/purge-preview" hx-target="#purge-msg" hx-include="#s-retention" style="margin-top:8px;">Jetzt bereinigen</button>
+    <div id="purge-msg" style="font-size:12px; margin-top:6px; min-height:16px;"></div>
+  </div>
+  <div class="field">
+    <label for="s-page-size">Zeilen pro Seite</label>
+    <input id="s-page-size" name="page_size" type="number" min="100" max="20000" step="100" value="{{ settings.page_size }}">
+  </div>
+  <div class="field">
+    <label class="check">
+      <input type="checkbox" id="s-paste-custom" name="paste_custom" {% if uses_custom_paste %}checked{% endif %} onchange="togglePasteCustomFields(this)">
+      Eigene Paste-Instanz verwenden
+    </label>
+    <div id="s-paste-custom-fields" style="display:{{ 'block' if uses_custom_paste else 'none' }}; margin-top:8px;">
+      <label for="s-paste-upload">Paste-Upload-URL</label>
+      <input id="s-paste-upload" name="paste_upload_url" type="text" placeholder="https://bytebin.openwb.de/post" value="{{ settings.paste_upload_url }}">
+      <label for="s-paste-view" style="margin-top:8px;">Paste-Anzeige-URL</label>
+      <input id="s-paste-view" name="paste_view_url" type="text" placeholder="https://paste.openwb.de/" value="{{ settings.paste_view_url }}">
+    </div>
+  </div>
+  <div class="field">
+    <label>Retention-Job</label>
+    <div id="retention-info">
+      <span id="retention-status" class="{{ 'unhealthy' if retention_unhealthy else '' }}">{{ 'Fehlgeschlagen' if retention_unhealthy else 'OK' }}</span>
+      {% if retention_unhealthy %}
+      <button type="button" hx-post="/hx/retention/repair" hx-target="#settings-panel-body"
+              hx-confirm="Verwaiste Retention-Katalogeinträge bereinigen? Entfernt nur Metadaten bereits gelöschter Chunks, keine echten Log-Daten.">
+        Reparieren
+      </button>
+      {% endif %}
+    </div>
+    {% if retention_error %}<div id="retention-msg">{{ retention_error }}</div>{% endif %}
+  </div>
+  <div class="field">
+    <label>Kompressions-Job</label>
+    <div id="compression-info">
+      <span id="compression-status" class="{{ 'unhealthy' if compression_unhealthy else '' }}">{{ 'Fehlgeschlagen' if compression_unhealthy else 'OK' }}</span>
+      {% if compression_unhealthy %}
+      <button type="button" hx-post="/hx/compression/repair" hx-target="#settings-panel-body"
+              hx-confirm="Kompressions-Job neu einrichten? Setzt nur den internen Job-Status zurück, keine echten Log-Daten werden verändert. Hilft nicht, wenn die Ursache stattdessen zu wenig Speicherplatz ist.">
+        Reparieren
+      </button>
+      {% endif %}
+    </div>
+    {% if compression_error %}<div id="compression-msg">{{ compression_error }}</div>{% endif %}
+  </div>
+  <div class="field">
+    <label>Version</label>
+    <div id="update-info">
+      <span id="update-commit">-</span>
+      <button id="update-check" type="button">Prüfen</button>
+      <button id="update-btn" type="button">Update</button>
+    </div>
+    <div id="update-msg"></div>
+  </div>
+</form>
