@@ -134,6 +134,21 @@ variables, no restart. Full picture in `README.md`; details in
   unlike Settings, where the orchestration *was* the complexity being
   removed.
 
+  A more complete design *was* found and considered, not just dismissed
+  outright: every control could send its full current UI state (source/
+  day/level/search/live/sort) via `hx-include`, letting `/hx/logs`
+  itself make the one tail-vs-not decision server-side instead of
+  duplicating it; live-tail could become a self-perpetuating polling
+  chain (each response includes its own next `hx-trigger="every 5s"`,
+  reading live scroll position via `hx-vals`'s `js:` prefix at each
+  tick so it can stop itself once scrolled away, instead of a JS
+  `setInterval`); sort-toggle could become just another request
+  parameter instead of a client-side special case. Explicitly declined
+  anyway: it's a meaningfully more novel htmx pattern than anything in
+  Statistik/Settings, landing in the app's most continuously-running,
+  most-used code path, right after a real regression from a *simpler*
+  conversion — not worth the risk for a view that already works well.
+
 Storage is TimescaleDB only — there is deliberately no flat-file log
 output. Retention is a database policy (`add_retention_policy`), not
 application code, re-applied every poll cycle in case the setting changed.
