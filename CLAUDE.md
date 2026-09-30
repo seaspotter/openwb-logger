@@ -116,7 +116,23 @@ variables, no restart. Full picture in `README.md`; details in
   htmx candidate — e.g. the alerts modal is deliberately staying
   client-rendered, since its data already arrives via the existing 5s
   `/api/status` poll and a separate `hx-get` would just be a redundant
-  round-trip for data already fetched seconds earlier.
+  round-trip for data already fetched seconds earlier. The migration is
+  considered **done** with these two sections — the main log view
+  (`#log`/`#pager`, source/day/level/search filters, Zeitraum, live-tail,
+  keyset pagination, sort toggle) deliberately stays classic JS, not as
+  an oversight: every filter control funnels through one function,
+  `load()`, which decides whether the result is live-tailing or a
+  filtered/paginated view, and *not every control agrees on what turns
+  live-tailing off* (`level`/`search`/prev-next/Zeitraum always do;
+  `source`/`day` deliberately don't — changing the day back to today
+  while Live is checked resumes following). That inconsistency means
+  there's no clean way to give each control its own simple, independent
+  `hx-get` without duplicating `load()`'s own tail-vs-not decision in a
+  second place. The actual complexity here was always in that
+  orchestration, not in rendering (`render()` is ~15 straightforward
+  lines) — moving rendering server-side wouldn't have reduced any of it,
+  unlike Settings, where the orchestration *was* the complexity being
+  removed.
 
 Storage is TimescaleDB only — there is deliberately no flat-file log
 output. Retention is a database policy (`add_retention_policy`), not
