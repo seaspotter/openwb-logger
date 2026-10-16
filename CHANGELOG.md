@@ -6,6 +6,35 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
+### Changed
+- Upgraded `mcp` from 1.29.0 to 2.3.0. The old pin comment claimed a
+  `starlette` version conflict with `fastapi==0.115.0`, but that's
+  actually resolved as of this `mcp` release (its `starlette>=0.48`
+  requirement only applies on Python 3.14+; this project runs 3.12, so
+  the real constraint is just `starlette>=0.27`, well within fastapi's
+  own `<0.39,>=0.37.2` pin -- verified directly, not assumed). The real
+  blocker was an API rename (`mcp.server.fastmcp.FastMCP` ->
+  `mcp.server.mcpserver.MCPServer`, `streamable_http_path`/
+  `transport_security` moved from the constructor to
+  `streamable_http_app()`) -- `@tool()`/`@resource()` decorators and
+  the `mcp.session_manager.run()` lifespan pattern are unchanged.
+  Verified with a minimal reproduction of the real construct/mount/
+  lifespan chain before touching `app/mcp_server.py`/`app/main.py` for
+  real.
+- Routine Dependabot dependency updates, reviewed individually (release
+  notes checked for breaking changes relevant to this project's actual
+  usage, then `pip check` + full import + `pytest` run locally with
+  everything installed together) rather than merged blind: `fastapi`
+  0.115.0 → 0.143.0, `uvicorn` 0.32.0 → 0.54.0, `httpx` 0.27.2 → 0.28.1
+  (its removed `proxies`/`app` args aren't used here), `asyncpg` 0.30.0
+  → 0.32.0 (`min_size` is now a strictly maintained floor rather than
+  best-effort, which only makes our existing `min_size=1` pool setting
+  more correct, not less), and six GitHub Actions version bumps
+  (`docker/login-action`, `softprops/action-gh-release`,
+  `docker/metadata-action`, `docker/setup-buildx-action`,
+  `actions/setup-python`, `docker/build-push-action` -- all just a
+  Node 24 runtime bump, already supported by `ubuntu-latest`).
+
 ## [0.7.0] - 2026-10-16
 
 ### Added

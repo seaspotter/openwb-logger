@@ -2,8 +2,8 @@
 web UI's own search/tail/export, mounted on the same FastAPI app (same
 port, same DB pool, same trust model) via MCP's Streamable HTTP transport
 at /mcp. See app/main.py for how this gets wired into the app's lifespan
-(mounting disables FastMCP's own lifespan; the host app's lifespan has to
-enter `mcp.session_manager.run()` instead, or the first request fails).
+(mounting disables MCPServer's own lifespan; the host app's lifespan has
+to enter `mcp.session_manager.run()` instead, or the first request fails).
 
 No new authentication here -- this reaches exactly the same data as the
 existing web UI/API, under the same no-auth-by-default, LAN-trust model
@@ -14,37 +14,21 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from mcp.server.fastmcp import FastMCP
-from mcp.server.transport_security import TransportSecuritySettings
+from mcp.server.mcpserver import MCPServer
 
 from .db import RAW_EXPR, get_pool
 from .log_catalog import CATALOG
 from .runtime_settings import get_settings
 from .web import _export_body, _filters
 
-# streamable_http_path="/" so mounting this server's ASGI app at "/mcp" on
-# the main FastAPI app (see main.py) puts the actual endpoint at exactly
-# /mcp, not /mcp/mcp (FastMCP's own default streamable_http_path is
-# already "/mcp", meant for when it's the *only* app being served).
-#
-# transport_security disables FastMCP's DNS-rebinding Host-header check --
-# confirmed live as a real bug, not a hypothetical: FastMCP() auto-enables
-# it whenever transport_security isn't given AND its own (unused-here)
-# `host` param defaults to "127.0.0.1", allowlisting only
-# localhost/127.0.0.1/::1 and rejecting every other Host header with a 421
-# "Invalid Host header" -- including any real LAN address a client
-# actually connects through (mcp==1.29.0's
-# mcp/server/fastmcp/server.py). That default assumes FastMCP is running
-# its own standalone server bound to loopback; this one is mounted inside
-# the main FastAPI app instead and reached the same way as the rest of
-# it -- explicitly no-auth-by-default, LAN-trust (see module docstring
-# above) -- so the Host-based allowlist doesn't fit here any more than it
-# would on any other route in this app.
-mcp = FastMCP(
-    "openwb-logger",
-    streamable_http_path="/",
-    transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
-)
+# mcp 2.x renamed FastMCP -> MCPServer and moved transport-specific
+# settings (streamable_http_path, transport_security) off the
+# constructor and onto streamable_http_app() instead -- see main.py's
+# app.mount() call, where those now live. The *reason* for both of them
+# is unchanged from the 1.x days, see there for the full explanation
+# (why streamable_http_path="/" specifically, and why DNS-rebinding
+# protection needs disabling for a mounted, LAN-trust app like this one).
+mcp = MCPServer("openwb-logger")
 
 # Modest limits, unlike the web UI's own (Zeitraum's RANGE_LIMIT=100000,
 # sized for what a browser can render): responses here flow into an LLM's
