@@ -6,6 +6,18 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
+### Fixed
+- `dependabot.yml` didn't set `target-branch`, so its PRs went straight
+  to `main` (the repo's default branch) -- confirmed live: the first
+  batch merged there directly, bypassing `dev` entirely and breaking
+  the "`dev` never lacks anything `main` has" invariant the release
+  process depends on (`main` only ever receives fast-forward merges
+  from `dev`, at release time). Fixed by rebasing `dev`'s one
+  unique commit onto `main`'s new state and force-pushing (no other
+  work was based on the old commit) rather than a merge commit, to
+  keep history linear. Now every ecosystem's config sets
+  `target-branch: "dev"` so this can't recur.
+
 ### Changed
 - Upgraded `mcp` from 1.29.0 to 2.3.0. The old pin comment claimed a
   `starlette` version conflict with `fastapi==0.115.0`, but that's

@@ -3,17 +3,27 @@ updates:
   # requirements.txt / requirements-dev.txt
   - package-ecosystem: "pip"
     directory: "/"
+    # Without this, PRs target the repo's default branch (main) --
+    # confirmed live: the first batch landed there directly, bypassing
+    # dev entirely and breaking the "dev never lacks anything main has"
+    # invariant the release process (see DEVELOPMENT.md) depends on,
+    # needing a rebase + force-push to fix. main only ever receives
+    # fast-forward merges from dev, at release time -- never a direct
+    # push, Dependabot included.
+    target-branch: "dev"
     schedule:
       interval: "weekly"
 
   # .github/workflows/*.yml
   - package-ecosystem: "github-actions"
     directory: "/"
+    target-branch: "dev"
     schedule:
       interval: "weekly"
 
   # Dockerfile base image
   - package-ecosystem: "docker"
     directory: "/"
+    target-branch: "dev"
     schedule:
       interval: "weekly"
