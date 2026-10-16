@@ -6,6 +6,8 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-10-16
+
 ### Fixed
 - Every page broke with a raw 500 "Internal Server Error" after the
   v0.8.0 dependency upgrades -- confirmed live. Cause: `fastapi`
