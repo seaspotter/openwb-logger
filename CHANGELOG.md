@@ -6,6 +6,8 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-16
+
 ### Fixed
 - `dependabot.yml` didn't set `target-branch`, so its PRs went straight
   to `main` (the repo's default branch) -- confirmed live: the first
@@ -51,7 +53,16 @@ what that means in practice for this project.
   checking wheel availability: installed every pinned dependency
   (`asyncpg` specifically, the one with native/compiled wheels) into an
   actual Python 3.14.6 interpreter and ran the full import + `pytest`
-  suite against it -- all clean.
+  suite against it -- all clean. (One real, confirmed-live wrinkle along
+  the way: this bump and the `mcp` upgrade landed as separate Dependabot
+  PRs that both merged straight to `main` -- see "Fixed" above -- so for
+  a few minutes `main` had `python:3.14-slim` paired with the *old*
+  `mcp==1.29.0` pin, which really does require `starlette>=0.48` on
+  Python 3.14+ and really does conflict with `fastapi==0.115.0`'s own
+  pin, breaking that commit's Docker build. Confirms the old pin
+  comment wasn't simply wrong, just specific to a Python-version
+  condition this project wasn't hitting at 3.12 -- resolved once both
+  changes landed together.)
 
 ## [0.7.0] - 2026-10-16
 
