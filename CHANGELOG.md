@@ -46,6 +46,12 @@ what that means in practice for this project.
   `docker/metadata-action`, `docker/setup-buildx-action`,
   `actions/setup-python`, `docker/build-push-action` -- all just a
   Node 24 runtime bump, already supported by `ubuntu-latest`).
+- The Docker image's base moved from `python:3.12-slim` to
+  `python:3.14-slim`. Verified for real before merging, not just by
+  checking wheel availability: installed every pinned dependency
+  (`asyncpg` specifically, the one with native/compiled wheels) into an
+  actual Python 3.14.6 interpreter and ran the full import + `pytest`
+  suite against it -- all clean.
 
 ## [0.7.0] - 2026-10-16
 
