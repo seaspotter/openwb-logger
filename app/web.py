@@ -99,8 +99,7 @@ async def index(request: Request):
     # a hard refresh to work again" after an update. self_update_available()
     # makes updates routine here, unlike a typical static site.
     return templates.TemplateResponse(
-        "index.html", {"request": request},
-        headers={"Cache-Control": "no-store"},
+        request, "index.html", headers={"Cache-Control": "no-store"},
     )
 
 
@@ -194,7 +193,7 @@ async def hx_stats(request: Request, hours: int = 24, source: str | None = None)
     pool = get_pool()
     rows = await _error_summary_rows(pool, hours, source, STATS_DEFAULT_LIMIT)
     return templates.TemplateResponse(
-        "hx/stats/panel.html", {"request": request, "hours": hours, "rows": rows}
+        request, "hx/stats/panel.html", {"hours": hours, "rows": rows}
     )
 
 
@@ -205,7 +204,7 @@ async def hx_stats_table(request: Request, hours: int = 24, source: str | None =
     pool = get_pool()
     rows = await _error_summary_rows(pool, hours, source, STATS_DEFAULT_LIMIT)
     return templates.TemplateResponse(
-        "hx/stats/_table.html", {"request": request, "rows": rows}
+        request, "hx/stats/_table.html", {"rows": rows}
     )
 
 
@@ -216,7 +215,7 @@ async def hx_openwb_info(request: Request):
     already reads. None until the fetcher has seen a matching line since
     its last restart."""
     return templates.TemplateResponse(
-        "hx/openwb_info.html", {"request": request, "info": fetcher.status.openwb_info}
+        request, "hx/openwb_info.html", {"info": fetcher.status.openwb_info}
     )
 
 
@@ -463,8 +462,8 @@ async def hx_retention_purge_preview(request: Request, retention_days: int = For
     _, removed_rows = await _purge_preview(pool, retention_days)
     state = "confirm" if removed_rows else "empty"
     return templates.TemplateResponse(
-        "hx/settings/_purge_result.html",
-        {"request": request, "state": state, "removed_rows": removed_rows},
+        request, "hx/settings/_purge_result.html",
+        {"state": state, "removed_rows": removed_rows},
     )
 
 
@@ -475,8 +474,8 @@ async def hx_retention_purge(request: Request, retention_days: int = Form(...)):
         "SELECT drop_chunks('log_lines', older_than => make_interval(days => $1))", retention_days
     )
     return templates.TemplateResponse(
-        "hx/settings/_purge_result.html",
-        {"request": request, "state": "done", "removed_rows": removed_rows},
+        request, "hx/settings/_purge_result.html",
+        {"state": "done", "removed_rows": removed_rows},
     )
 
 
@@ -586,9 +585,9 @@ async def _settings_form_response(request: Request, pool, error: str | None = No
     retention_unhealthy, retention_error = await _job_status(pool, "policy_retention")
     compression_unhealthy, compression_error = await _job_status(pool, "policy_compression")
     return templates.TemplateResponse(
-        "hx/settings/form.html",
+        request, "hx/settings/form.html",
         {
-            "request": request, "settings": rt, "catalog": CATALOG,
+            "settings": rt, "catalog": CATALOG,
             "uses_custom_paste": uses_custom_paste, "error": error,
             "retention_unhealthy": retention_unhealthy, "retention_error": retention_error,
             "compression_unhealthy": compression_unhealthy, "compression_error": compression_error,

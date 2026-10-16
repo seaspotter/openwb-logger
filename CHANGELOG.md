@@ -6,6 +6,24 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
+### Fixed
+- Every page broke with a raw 500 "Internal Server Error" after the
+  v0.8.0 dependency upgrades -- confirmed live. Cause: `fastapi`
+  0.143.0 pulled in `starlette` 1.x (a real major version, not caught
+  by the earlier dependency review -- `fastapi`'s own constraint is
+  just `starlette>=0.46.0`, no upper bound), which made
+  `Jinja2Templates.TemplateResponse()`'s signature strictly
+  `(request, name, context=None, ...)` -- `request` first, `name`
+  second. Every call site here still used the old, now-unsupported
+  `(name, {"request": request, ...})` form, so `name` silently became
+  that whole context dict instead of a string, and Jinja crashed trying
+  to use an unhashable dict as a template cache key. Fixed all seven
+  call sites in `app/web.py`. The pure-logic test suite (deliberately
+  DB/network-free, see DEVELOPMENT.md) never exercises any actual route,
+  so this needed a real `TestClient` HTTP request through every
+  `TemplateResponse` call site to catch -- import success and `pytest`
+  passing isn't enough to verify a dependency upgrade touching the web
+  framework itself.
 ## [0.8.1] - 2026-10-16
 
 ### Changed
