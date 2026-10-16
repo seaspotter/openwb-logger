@@ -6,6 +6,14 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-10-16
+
+### Changed
+- Two more routine Dependabot GitHub Actions bumps, reviewed the same
+  way as the rest of this batch (release notes checked, nothing
+  relevant to how this project actually uses them): `actions/checkout`
+  4 → 7, `docker/setup-qemu-action` 3 → 4.
+
 ## [0.8.0] - 2026-10-16
 
 ### Fixed
