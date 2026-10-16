@@ -30,7 +30,7 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # Full history/tags, not the default shallow clone -- needed for
           # `git describe` below to find the right tag.
