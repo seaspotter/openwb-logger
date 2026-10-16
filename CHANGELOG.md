@@ -6,6 +6,14 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
+### Added
+- `.github/dependabot.yml`: weekly update PRs for the `pip`
+  (`requirements.txt`/`requirements-dev.txt`), `github-actions`
+  (`.github/workflows/*.yml`), and `docker` (the Dockerfile's base
+  image) ecosystems -- security-only Dependabot alerts/automated fix
+  PRs were already enabled on the repo, but routine version-bump PRs
+  need this config file separately.
+
 ## [0.6.0] - 2026-10-01
 
 ### Added
