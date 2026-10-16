@@ -6,6 +6,8 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-16
+
 ### Added
 - `.github/dependabot.yml`: weekly update PRs for the `pip`
   (`requirements.txt`/`requirements-dev.txt`), `github-actions`
