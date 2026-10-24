@@ -6,6 +6,18 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
+## [0.8.3] - 2026-10-24
+
+### Changed
+- `fastapi` 0.143.0 → 0.152.0, verified properly this time given the
+  last `fastapi` bump's real breakage (v0.8.2): confirmed it resolves
+  to the same `starlette` 1.8.0 already installed (no new major
+  version), then a real `TestClient` HTTP request through the actual
+  `TemplateResponse` call sites, plus a full app import and `pytest`
+  run. The two real changes in this range (`root_path` deprecated,
+  `openapi_prefix`/unused `**extra` removed from `FastAPI()`) aren't
+  used here.
+
 ## [0.8.2] - 2026-10-16
 
 ### Fixed
