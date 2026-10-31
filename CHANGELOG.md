@@ -6,6 +6,18 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
+## [0.8.4] - 2026-10-31
+
+### Changed
+- `fastapi` 0.152.0 → 0.162.0 and `pytest-asyncio` 1.4.0 → 1.4.1,
+  reviewed the same way as the last `fastapi` bump: resolves to the
+  same `starlette` 1.8.0 (no new major version), real `TestClient`
+  requests through `index.html`/`hx/settings/form.html`/
+  `hx/stats/panel.html` all 200, full app import and `pytest` clean.
+  The one real breaking change in this range (removed `**extra`
+  kwargs from `Query`/`Form`/etc.) doesn't affect us -- only documented
+  params (`default`, `alias`, `le`) are used here.
+
 ## [0.8.3] - 2026-10-24
 
 ### Changed
