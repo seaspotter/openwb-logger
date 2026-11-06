@@ -6,6 +6,12 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
+## [0.8.5] - 2026-11-06
+
+### Changed
+- `pytest` 9.1.1 → 9.2.0 and `pytest-asyncio` 1.4.1 → 1.4.1.post1
+  (dev-only test dependencies, no runtime code affected).
+
 ## [0.8.4] - 2026-10-31
 
 ### Changed
