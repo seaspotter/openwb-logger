@@ -6,14 +6,24 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
+### Changed
+- Retired the `dev`+`main` branch split -- `main` is the only branch
+  now, fits better now that this project is in maintenance rather than
+  active feature development. Day-to-day work and fixes go straight to
+  `main` via a PR (or a direct commit/push for the repo owner).
+  `dependabot.yml` no longer overrides `target-branch`, so Dependabot
+  PRs target `main` directly too. If a deployment's self-update is
+  still checked out on `dev`, switch it to `main` -- `dev` no longer
+  receives new commits.
+
 ### Added
 - Dependabot PRs now auto-merge when they're low-risk by this project's
   own track record: GitHub Actions bumps, and pip patch-level bumps
   except `fastapi`/`mcp`/`starlette` and the Docker base image, which
   have each broken something before even with CI green. Requires the
   new `pytest`/`build` checks below, now required via branch protection
-  on `dev` (Dependabot's own target branch here; merging into it only --
-  the repo owner's own direct commits/pushes are unaffected).
+  on `main` (merging into it only -- the repo owner's own direct
+  commits/pushes are unaffected).
 - A new `pr-build-check.yml` workflow builds the Docker image on every
   pull request (amd64 only, never pushed) -- a sanity check that the
   image still builds at all, mirroring the sibling

@@ -2,13 +2,17 @@
 
 ## Branching
 
-- `main` — stable, releasable. Nothing lands here directly.
-- `dev` — active development. Day-to-day work and commits happen here.
+- `main` — the only branch. Day-to-day work and fixes land here via a
+  PR (or, for the repo owner, a direct commit/push) — see `CHANGELOG.md`
+  for what's shipped since the last release. `main` is what
+  `DEPLOYMENT.md`'s `git clone`/`git pull` instructions assume, and what
+  self-update (`app/updater.py`) should track.
 
-When `dev` is in good shape, merge it into `main` (PR or fast-forward
-merge) and tag a release there — see `CHANGELOG.md` for what's shipped
-since the last one. `main` is what `DEPLOYMENT.md`'s `git clone` /
-`git pull` instructions assume.
+(This project used a `dev`+`main` split earlier, retired once active
+feature development gave way to maintenance -- see `CHANGELOG.md`'s
+`[Unreleased]` entry for when. If a deployment's self-update is still
+checked out on `dev`, switch it to `main`: `dev` no longer receives new
+commits.)
 
 ## Versioning and releasing
 
@@ -30,22 +34,10 @@ interface yet.
 
 To cut a release:
 
-1. On `dev`, rename `CHANGELOG.md`'s `## [Unreleased]` section to
-   `## [X.Y.Z] - YYYY-MM-DD` and start a fresh empty `[Unreleased]` above
-   it.
-2. `git checkout main && git merge --ff-only dev` — **fast-forward, not
-   `--no-ff`**. `dev` never has anything `main` lacks in this workflow, so
-   this always succeeds as a clean fast-forward; using `--no-ff` instead
-   creates a separate merge commit that `dev`'s own history never
-   receives, meaning the release tag (next step) becomes an ancestor of
-   *that merge commit* but not of `dev`'s continued history — so any
-   deployment that tracks `dev` (e.g. self-update pulling straight from
-   `dev`, not `main`) can never `git describe` back to an exact tag name
-   again, only ever "vX.Y.Z-N-g...". Learned this the hard way once
-   already; if it happens again, `git checkout dev && git merge --ff-only
-   main` repairs it (safe exactly because `dev` never has unique commits
-   `main` lacks).
-3. `git tag vX.Y.Z && git push origin main --tags`.
+1. Rename `CHANGELOG.md`'s `## [Unreleased]` section to
+   `## [X.Y.Z] - YYYY-MM-DD` and start a fresh empty `[Unreleased]`
+   above it, on `main` (commit directly or via a PR).
+2. `git tag vX.Y.Z && git push origin main --tags`.
 
 That last push triggers two workflows on the new tag:
 `.github/workflows/docker-publish.yml` builds and publishes the
@@ -58,13 +50,12 @@ just created — so the repo's Releases page shows the new version as
 to be published as a GitHub Release by hand afterward, which is what this
 workflow now does automatically.)
 
-Two more workflows run on every pull request (including Dependabot's,
-which always targets `dev` here -- see `dependabot.yml`): `tests.yml`
-(the `pytest` suite) and `.github/workflows/pr-build-check.yml` (builds
-the Docker image, amd64 only, never pushed -- a sanity check that the
-image still builds at all, not just that pytest passes). Both
-(`pytest`/`build`) are required via branch protection on `dev` -- required
-only for merging a PR into it, not for the repo owner's own direct
+Two more workflows run on every pull request: `tests.yml` (the `pytest`
+suite) and `.github/workflows/pr-build-check.yml` (builds the Docker
+image, amd64 only, never pushed -- a sanity check that the image still
+builds at all, not just that pytest passes). Both (`pytest`/`build`)
+are required via branch protection on `main` -- required only for
+merging a PR into it, not for the repo owner's own direct
 commits/pushes there (`enforce_admins` is off, no push restriction).
 
 `.github/workflows/dependabot-auto-merge.yml` auto-merges Dependabot PRs
