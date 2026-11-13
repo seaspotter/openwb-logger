@@ -1,0 +1,31 @@
+name: PR build check
+
+# Builds the Docker image on every pull request (amd64 only, never
+# pushed) -- a sanity check that the image still builds at all before a
+# change lands on main, not just that pytest passes. Mirrors the sibling
+# openwb-ladeprotokoll project's own workflow of the same name, added
+# there after a real incident: a Dependabot PR bumping the Dockerfile's
+# Python base image merged cleanly (pytest never touches the Dockerfile)
+# but broke `pip install` inside the image outright, caught only after
+# merging to main. amd64-only and no multi-arch/QEMU/registry-login
+# steps, unlike docker-publish.yml -- this only needs to prove the build
+# succeeds, not produce a publishable artifact, so it skips everything
+# that exists purely for that.
+
+on:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

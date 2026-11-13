@@ -1,0 +1,49 @@
+name: Dependabot auto-merge
+
+# Auto-merges Dependabot PRs that are low-risk by this project's own
+# track record: GitHub Actions bumps, and pip patch-level bumps --
+# EXCEPT fastapi/mcp/starlette and the Docker base image, which have
+# each broken something before even with tests.yml/pr-build-check.yml
+# green (a fastapi/starlette major-version bump once crashed every route
+# with a 500 -- see the "Fix every route crashing with 500 after the
+# fastapi/starlette bump" commit -- and a Python base-image bump broke
+# the sibling openwb-ladeprotokoll project's image build outright).
+# Neither CI check here exercises an actual route or the real app boot,
+# so those three stay manual. Mirrors openwb-ladeprotokoll's own
+# workflow of the same name.
+#
+# Relies on branch protection requiring the "pytest"/"build" checks on
+# `dev` (Dependabot's own target-branch here, see dependabot.yml) --
+# auto-merge only actually waits for those if they're configured as
+# required, otherwise it would merge as soon as mergeable, checks or
+# not.
+
+on: pull_request
+
+permissions:
+  pull-requests: write
+  contents: write
+
+jobs:
+  auto-merge:
+    runs-on: ubuntu-latest
+    if: github.actor == 'dependabot[bot]'
+    steps:
+      - name: Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Enable auto-merge for low-risk updates
+        if: >
+          steps.metadata.outputs.package-ecosystem == 'github_actions' ||
+          (steps.metadata.outputs.package-ecosystem == 'pip' &&
+           steps.metadata.outputs.update-type == 'version-update:semver-patch' &&
+           !contains(steps.metadata.outputs.dependency-names, 'fastapi') &&
+           !contains(steps.metadata.outputs.dependency-names, 'mcp') &&
+           !contains(steps.metadata.outputs.dependency-names, 'starlette'))
+        run: gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

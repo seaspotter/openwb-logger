@@ -6,6 +6,19 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
+### Added
+- Dependabot PRs now auto-merge when they're low-risk by this project's
+  own track record: GitHub Actions bumps, and pip patch-level bumps
+  except `fastapi`/`mcp`/`starlette` and the Docker base image, which
+  have each broken something before even with CI green. Requires the
+  new `pytest`/`build` checks below, now required via branch protection
+  on `dev` (Dependabot's own target branch here; merging into it only --
+  the repo owner's own direct commits/pushes are unaffected).
+- A new `pr-build-check.yml` workflow builds the Docker image on every
+  pull request (amd64 only, never pushed) -- a sanity check that the
+  image still builds at all, mirroring the sibling
+  `openwb-ladeprotokoll` project's own workflow of the same name.
+
 ## [0.8.5] - 2026-11-06
 
 ### Changed

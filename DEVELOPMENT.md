@@ -58,6 +58,23 @@ just created — so the repo's Releases page shows the new version as
 to be published as a GitHub Release by hand afterward, which is what this
 workflow now does automatically.)
 
+Two more workflows run on every pull request (including Dependabot's,
+which always targets `dev` here -- see `dependabot.yml`): `tests.yml`
+(the `pytest` suite) and `.github/workflows/pr-build-check.yml` (builds
+the Docker image, amd64 only, never pushed -- a sanity check that the
+image still builds at all, not just that pytest passes). Both
+(`pytest`/`build`) are required via branch protection on `dev` -- required
+only for merging a PR into it, not for the repo owner's own direct
+commits/pushes there (`enforce_admins` is off, no push restriction).
+
+`.github/workflows/dependabot-auto-merge.yml` auto-merges Dependabot PRs
+that are low-risk by this project's own track record: GitHub Actions
+bumps, and pip patch-level bumps except `fastapi`/`mcp`/`starlette` and
+the Docker base image -- those three have each broken something before
+even with both checks green (a fastapi/starlette major-version bump
+once crashed every route with a 500; see that workflow's own comment).
+Everything else still needs a human to merge.
+
 ## Setup
 
 Requires Python 3.12+ and a local TimescaleDB (easiest via Docker).
