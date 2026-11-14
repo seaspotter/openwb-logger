@@ -29,6 +29,20 @@ what that means in practice for this project.
   image still builds at all, mirroring the sibling
   `openwb-ladeprotokoll` project's own workflow of the same name.
 
+### Fixed
+- Dead CSS left over from the Settings panel's htmx conversion:
+  `#settings-msg.ok`/`#retention-msg.error`/`.ok`/
+  `#compression-msg.error`/`.ok`/`#purge-msg.error`/`.ok` were never
+  actually applied by the server-rendered fragments (that used to be set
+  by JS directly on the old client-rendered panel). `#retention-msg`/
+  `#compression-msg` only ever show an error, so they're a plain fixed
+  error color now instead of a dead conditional class.
+- `CLAUDE.md`/`ROADMAP.md` still said `mcp` was pinned to its 1.x line
+  over a `starlette` conflict -- stale since the 2.x migration (v0.8.0);
+  both now describe the actual `mcp`/`MCPServer` 2.x API in use.
+- `DEVELOPMENT.md`'s project layout table was missing `app/main.py` and
+  the `app/templates/hx/` fragment directory.
+
 ## [0.8.5] - 2026-11-06
 
 ### Changed
