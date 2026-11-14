@@ -6,6 +6,8 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
+## [0.8.6] - 2026-11-14
+
 ### Changed
 - Retired the `dev`+`main` branch split -- `main` is the only branch
   now, fits better now that this project is in maintenance rather than
