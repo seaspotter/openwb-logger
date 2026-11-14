@@ -121,7 +121,9 @@ staging) openWB.
 | `app/web.py` | FastAPI routes (all reads/writes are plain parameterized SQL) |
 | `app/updater.py` | Optional in-app self-update (`git pull` + process restart) |
 | `app/mcp_server.py` | MCP server (search/tail/export/storage-info tools) for AI assistants, mounted at `/mcp` |
+| `app/main.py` | FastAPI app, lifespan (DB pool, poll loop, MCP session manager), route/static mounts |
 | `app/templates/index.html` | The entire frontend (German UI) — vanilla JS, no build step |
+| `app/templates/hx/` | Server-rendered htmx fragments (Statistik, openWB-info, Settings) — see `CLAUDE.md` |
 
 ## Adding a new log source
 

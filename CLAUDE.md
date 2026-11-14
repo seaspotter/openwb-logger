@@ -67,12 +67,13 @@ variables, no restart. Full picture in `README.md`; details in
   present, e.g. a plain image deployment.
 - `app/mcp_server.py` — MCP server (`search_logs`/`tail_logs`/
   `export_logs`/`get_storage_info` tools, an `openwb://sources` resource)
-  exposing the same
-  data as the web UI/API to AI assistants, mounted on the same FastAPI
-  app at `/mcp` via the Streamable HTTP transport -- same port, same DB
-  pool, same no-auth trust model as everything else. Pinned to `mcp`'s
-  1.x line in `requirements.txt`: 2.x forces a `starlette` major-version
-  bump incompatible with our `fastapi` pin. Mounting disables the
+  exposing the same data as the web UI/API to AI assistants, mounted on
+  the same FastAPI app at `/mcp` via the Streamable HTTP transport --
+  same port, same DB pool, same no-auth trust model as everything else.
+  Uses `mcp`'s 2.x API (`MCPServer`, not the 1.x `FastMCP`) --
+  `streamable_http_path`/`transport_security` live on
+  `streamable_http_app()` in `app/main.py` now, not the constructor (see
+  `CHANGELOG.md` for the 1.x->2.x migration notes). Mounting disables the
   library's own lifespan, so `app/main.py`'s lifespan has to enter
   `mcp.session_manager.run()` itself.
 - `app/templates/index.html` — the entire frontend shell, **in German**:
@@ -82,8 +83,8 @@ variables, no restart. Full picture in `README.md`; details in
   light/dark flip, not a three-way cycle through "system", which used to
   make the first click look like a no-op) — see the design-token block
   at the top of the file. Keep new UI copy in German too.
-- **htmx migration** (in progress, following the same pattern as the
-  sibling project `knxpilot`): parts of the UI are being converted from
+- **htmx migration** (complete, following the same pattern as the
+  sibling project `knxpilot`): parts of the UI were converted from
   client-rendered JSON+JS to server-rendered htmx fragments, one section
   at a time. htmx is vendored (not CDN) at
   `app/static/vendor/htmx-2.0.11.min.js`, served via a `/static` mount in

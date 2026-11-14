@@ -631,7 +631,9 @@ async def hx_settings_save(request: Request):
     # Tells the rest of the page (outside this fragment) to pick up the
     # new settings -- source list, dates, levels, the current log view,
     # and the header's page_size (see the "settings-changed" listener).
-    response.headers["HX-Trigger"] = json.dumps({"settings-changed": {"page_size": rt["page_size"]}})
+    response.headers["HX-Trigger"] = json.dumps(
+        {"settings-changed": {"page_size": rt["page_size"]}}
+    )
     return response
 
 
@@ -640,10 +642,13 @@ async def hx_retention_repair(request: Request):
     pool = get_pool()
     removed = await _repair_retention_catalog(pool)
     message = (
-        f"{removed} verwaiste Einträge entfernt." if removed else "Keine verwaisten Einträge gefunden."
+        f"{removed} verwaiste Einträge entfernt." if removed
+        else "Keine verwaisten Einträge gefunden."
     )
     response = await _settings_form_response(request, pool)
-    response.headers["HX-Trigger"] = json.dumps({"show-toast": {"message": message, "level": "info"}})
+    response.headers["HX-Trigger"] = json.dumps(
+        {"show-toast": {"message": message, "level": "info"}}
+    )
     return response
 
 

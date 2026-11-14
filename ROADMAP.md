@@ -30,8 +30,7 @@ which release each landed in.
 - [x] MCP server: `search_logs`/`tail_logs`/`export_logs`/
       `get_storage_info` tools plus an `openwb://sources` resource,
       mounted at `/mcp` alongside the web UI on the same port
-      (Streamable HTTP transport, `mcp` pinned to its 1.x line — 2.x's
-      `starlette` requirement conflicts with `fastapi`)
+      (Streamable HTTP transport, on `mcp`'s 2.x line)
 - [x] Alerts indicator instead of a full webhook/notification system: a
       small "!" button/badge in the UI aggregating current errors/
       warnings (fetch failures, format-mismatch, gaps, ERROR-level lines)
