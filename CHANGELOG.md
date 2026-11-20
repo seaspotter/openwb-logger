@@ -6,6 +6,10 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
+### Changed
+- Docker base image `python:3.14-slim` → `python:3.15-slim`, matching
+  the sibling `openwb-ladeprotokoll` project's own bump.
+
 ## [0.8.6] - 2026-11-14
 
 ### Changed
