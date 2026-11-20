@@ -1,0 +1,79 @@
+/* Shared design tokens and base component CSS, aligned with the Quartz
+   look (see .claude/skills/quartz-design) -- reimplemented here in plain
+   CSS, not copied from Quartz's own Tailwind/Vue files (this project stays
+   vanilla, no build step). One file instead of inline per page, since this
+   is the only full-page template here, but kept separate from page-specific
+   layout CSS so a future second page (or the sibling openwb-ladeprotokoll,
+   which has several) doesn't have to duplicate it again. */
+
+:root {
+  --bg: #f1f2f4; --panel: #ffffff; --border: #e3e5e9;
+  --text: #1a1d24; --muted: #6b7280; --accent: #2563eb;
+  --debug: #1f9d55; --info: #1a1d24; --warning: #ea580c; --error: #e11d48;
+  --mark-bg: #bfdbfe; --mark-text: #0b1d3a;
+  --backdrop: rgba(0, 0, 0, 0.35);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0a0b0d; --panel: #1f232b; --border: #343a46;
+    --text: #e7e9ee; --muted: #9aa0ac; --accent: #2563eb;
+    --debug: #3ec776; --info: #e7e9ee; --warning: #fb923c; --error: #fb7185;
+    --mark-bg: #4da3ff; --mark-text: #06131f;
+    --backdrop: rgba(0, 0, 0, 0.55);
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0a0b0d; --panel: #1f232b; --border: #343a46;
+  --text: #e7e9ee; --muted: #9aa0ac; --accent: #2563eb;
+  --debug: #3ec776; --info: #e7e9ee; --warning: #fb923c; --error: #fb7185;
+  --mark-bg: #4da3ff; --mark-text: #06131f;
+  --backdrop: rgba(0, 0, 0, 0.55);
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font-family: -apple-system, Segoe UI, Roboto, sans-serif;
+}
+
+select, input[type=text], input[type=number], input[type=datetime-local], button {
+  font-size: 13px;
+}
+select, input[type=text], input[type=number], input[type=datetime-local] {
+  background: var(--panel); color: var(--text); border: 1px solid var(--border);
+  border-radius: 10px; padding: 6px 8px;
+}
+button {
+  background: var(--panel); color: var(--text); border: 1px solid var(--border);
+  border-radius: 999px; padding: 6px 12px; cursor: pointer;
+}
+button:hover { border-color: var(--accent); }
+button:disabled { opacity: 0.5; cursor: default; }
+
+/* Icon button: round, not square -- Quartz's BaseIconButton (26px, 22px
+   on narrow viewports). */
+button.icon {
+  width: 26px; height: 26px; padding: 0; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+@media (max-width: 640px) {
+  button.icon { width: 22px; height: 22px; }
+}
+
+/* Status pill -- Quartz's `.badge`. 18% tint of the semantic color,
+   bold 11px text, fully round. */
+.badge {
+  display: inline-flex; align-items: center; border-radius: 999px;
+  padding: 3px 9px; font-size: 11px; font-weight: 700; white-space: nowrap;
+}
+.badge-ok {
+  background: color-mix(in srgb, var(--debug) 18%, transparent);
+  color: var(--debug);
+}
+.badge-error {
+  background: color-mix(in srgb, var(--error) 18%, transparent);
+  color: var(--error);
+}
+.badge-muted {
+  background: var(--bg); color: var(--muted);
+}

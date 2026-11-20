@@ -6,6 +6,19 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
+### Changed
+- UI restyled to align with Quartz (openWB's own dashboard look, see
+  `.claude/skills/quartz-design`): cards/panels/toasts/modals now 14px
+  radius instead of 8-10px, buttons and icon buttons fully round (icon
+  buttons 26px, 22px on narrow screens) instead of 32px square, inputs/
+  selects 10px radius instead of 6px, icons `stroke-width` 1.8 instead of
+  2. Palette tokens now match Quartz's exact values (dark-mode accent is
+  now the same `#2563eb` as light mode, not a separately lightened
+  `#4da3ff`). The retention/compression job status indicators are now
+  `.badge` pills (tinted) instead of plain colored text. Tokens and base
+  component CSS moved out of `index.html`'s inline `<style>` into a new
+  `app/static/theme.css`, served via the existing `/static` mount.
+
 ## [0.8.6] - 2026-11-14
 
 ### Changed

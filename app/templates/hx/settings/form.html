@@ -50,7 +50,7 @@
   <div class="field">
     <label>Retention-Job</label>
     <div id="retention-info">
-      <span id="retention-status" class="{{ 'unhealthy' if retention_unhealthy else '' }}">{{ 'Fehlgeschlagen' if retention_unhealthy else 'OK' }}</span>
+      <span id="retention-status" class="badge {{ 'badge-error' if retention_unhealthy else 'badge-ok' }}">{{ 'Fehlgeschlagen' if retention_unhealthy else 'OK' }}</span>
       {% if retention_unhealthy %}
       <button type="button" hx-post="/hx/retention/repair" hx-target="#settings-panel-body"
               hx-confirm="Verwaiste Retention-Katalogeinträge bereinigen? Entfernt nur Metadaten bereits gelöschter Chunks, keine echten Log-Daten.">
@@ -63,7 +63,7 @@
   <div class="field">
     <label>Kompressions-Job</label>
     <div id="compression-info">
-      <span id="compression-status" class="{{ 'unhealthy' if compression_unhealthy else '' }}">{{ 'Fehlgeschlagen' if compression_unhealthy else 'OK' }}</span>
+      <span id="compression-status" class="badge {{ 'badge-error' if compression_unhealthy else 'badge-ok' }}">{{ 'Fehlgeschlagen' if compression_unhealthy else 'OK' }}</span>
       {% if compression_unhealthy %}
       <button type="button" hx-post="/hx/compression/repair" hx-target="#settings-panel-body"
               hx-confirm="Kompressions-Job neu einrichten? Setzt nur den internen Job-Status zurück, keine echten Log-Daten werden verändert. Hilft nicht, wenn die Ursache stattdessen zu wenig Speicherplatz ist.">
