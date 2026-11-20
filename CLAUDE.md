@@ -81,8 +81,15 @@ variables, no restart. Full picture in `README.md`; details in
   default, dark via `prefers-color-scheme` for first-visit only, then an
   explicit `data-theme` toggle persisted in `localStorage` — a plain
   light/dark flip, not a three-way cycle through "system", which used to
-  make the first click look like a no-op) — see the design-token block
-  at the top of the file. Keep new UI copy in German too.
+  make the first click look like a no-op). Keep new UI copy in German too.
+- `app/static/theme.css` — shared design tokens (`:root`/`:root[data-theme
+  ='dark']`) and base component CSS (buttons, inputs, icon buttons,
+  `.badge*`), aligned with the Quartz look (`.claude/skills/quartz-design`)
+  but reimplemented in plain CSS, not copied from Quartz's own Tailwind/
+  Vue files — this project stays vanilla, no build step, and copying
+  Quartz's files verbatim would carry its GPL-3.0 license, unlike
+  reimplementing the tokens/rules. Page-specific layout CSS stays inline
+  in `index.html`'s own `<style>` block.
 - **htmx migration** (complete, following the same pattern as the
   sibling project `knxpilot`): parts of the UI were converted from
   client-rendered JSON+JS to server-rendered htmx fragments, one section
