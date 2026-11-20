@@ -6,6 +6,8 @@ what that means in practice for this project.
 
 ## [Unreleased]
 
+## [0.8.7] - 2026-11-20
+
 ### Changed
 - UI restyled to align with Quartz (openWB's own dashboard look, see
   `.claude/skills/quartz-design`): cards/panels/toasts/modals now 14px
