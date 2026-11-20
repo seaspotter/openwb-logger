@@ -17,7 +17,10 @@ what that means in practice for this project.
   `#4da3ff`). The retention/compression job status indicators are now
   `.badge` pills (tinted) instead of plain colored text. Tokens and base
   component CSS moved out of `index.html`'s inline `<style>` into a new
-  `app/static/theme.css`, served via the existing `/static` mount.
+  `app/static/theme.css`, served via the existing `/static` mount. The
+  dark/light switch is now an actual slide toggle (Quartz's own toggle
+  recipe) instead of a sun/moon icon button, matching the sibling
+  `openwb-ladeprotokoll` project's own change.
 - Docker base image `python:3.14-slim` → `python:3.15-slim`, matching
   the sibling `openwb-ladeprotokoll` project's own bump.
 - `fastapi` 0.162.3 → 0.165.0 (further than Dependabot's own PR proposed,
